@@ -74,22 +74,27 @@ CREATE TABLE Emojis (
 );
 ```
 
-### UserProgress
-Daily user progress tracking
+### MessageLogs
+Individual message processing tracking (primary tracking mechanism)
 ```sql
-CREATE TABLE UserProgress (
+CREATE TABLE MessageLogs (
     Id SERIAL PRIMARY KEY,
+    MessageId BIGINT UNIQUE NOT NULL,         -- Discord Message ID
     UserId BIGINT NOT NULL,                   -- Discord User ID
     WeekId INT REFERENCES Weeks(Id),
-    Date DATE NOT NULL,                       -- Progress date
-    PomodoroPoints INT DEFAULT 0,             -- Daily pomodoro points
-    BonusPoints INT DEFAULT 0,                -- Daily bonus points
-    GoalPoints INT DEFAULT 0,                 -- Daily goal points
-    MessageCount INT DEFAULT 0,               -- Number of messages
-    
-    UNIQUE(UserId, WeekId, Date)
+    PomodoroPoints INT DEFAULT 0,             -- Points from pomodoro emojis
+    BonusPoints INT DEFAULT 0,                -- Points from bonus emojis
+    GoalPoints INT DEFAULT 0                  -- Points from goal emojis (sum per user/week = goal)
 );
 ```
+
+**Key Benefits:**
+- **Deduplication**: MessageId prevents processing same message twice
+- **Edit Handling**: Can update specific message when edited
+- **Delete Handling**: Can remove specific message when deleted
+- **Granular Tracking**: Know exactly which messages contributed points
+- **Leaderboard Calculation**: Sum all messages for user/week when needed
+- **Goal Calculation**: Sum GoalPoints for user/week to determine weekly goal
 
 ### UserGoals
 Weekly goal tracking
@@ -108,20 +113,7 @@ CREATE TABLE UserGoals (
 );
 ```
 
-### MessageLogs
-Minimal message processing tracking
-```sql
-CREATE TABLE MessageLogs (
-    Id SERIAL PRIMARY KEY,
-    MessageId BIGINT UNIQUE NOT NULL,         -- Discord Message ID
-    UserId BIGINT NOT NULL,                   -- Discord User ID
-    WeekId INT REFERENCES Weeks(Id),
-    PomodoroPoints INT DEFAULT 0,             -- Points from pomodoro emojis
-    BonusPoints INT DEFAULT 0,                -- Points from bonus emojis
-    GoalPoints INT DEFAULT 0,                 -- Points from goal emojis
-    IsGoalMessage BOOLEAN DEFAULT false       -- Goal setting message
-);
-```
+
 
 ## Indexes
 ```sql
@@ -133,17 +125,16 @@ CREATE INDEX idx_challenges_active ON Challenges(IsActive);
 CREATE INDEX idx_weeks_challenge ON Weeks(ChallengeId);
 CREATE INDEX idx_emojis_server ON Emojis(ServerId);
 CREATE INDEX idx_emojis_challenge ON Emojis(ChallengeId);
-CREATE INDEX idx_progress_user_week ON UserProgress(UserId, WeekId);
-CREATE INDEX idx_progress_date ON UserProgress(Date);
 CREATE INDEX idx_goals_user_week ON UserGoals(UserId, WeekId);
 CREATE INDEX idx_messages_processed ON MessageLogs(MessageId);
 CREATE INDEX idx_messages_week ON MessageLogs(WeekId);
+CREATE INDEX idx_messages_user_week ON MessageLogs(UserId, WeekId); -- For leaderboard queries
 ```
 
 ## Relationships
 - **Server** 1:N **Challenges** (one server, many challenges)
 - **Challenge** 1:N **Weeks** (one challenge, many weeks)
-- **Week** 1:N **UserProgress** (one week, many user entries)
+- **Week** 1:N **MessageLogs** (one week, many message entries)
 - **Week** 1:N **UserGoals** (one week, many user goals)
 - **Server** 1:N **Emojis** (global emojis per server)
 - **Challenge** 1:N **Emojis** (theme-specific emojis)

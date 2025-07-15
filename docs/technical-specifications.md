@@ -36,10 +36,14 @@ Discord supports multiple emoji formats that need to be detected:
 - Examples: `<:custom_book:123456789>`, `<a:spinning_star:987654321>`
 - *Note: Values shown are examples only and will be configured per server/challenge*
 
-### Message Aggregation Strategy
-- **Real-time**: Process each message/edit/deletion event immediately
-- **Thread-wide**: Rescan entire thread when generating leaderboards
-- **Purpose**: Ensure no messages missed despite real-time processing
+### Message Tracking Strategy
+- **Individual Message Storage**: Each message stored separately with points breakdown
+- **Deduplication**: MessageId prevents processing same message twice during normal operation
+- **Edit Handling**: Update existing MessageLog record when message edited
+- **Delete Handling**: Remove MessageLog record when message deleted
+- **Reprocessing Support**: `forceReprocess` parameter allows reprocessing existing messages during rescans
+- **Week Rescanning**: `RescanWeekAsync()` method reprocesses entire week before leaderboard generation
+- **Leaderboard Generation**: Query and sum MessageLog records for user/week
 
 ### Goal Setting System
 Goals are set using designated "goal emojis" rather than text messages:
@@ -51,9 +55,9 @@ Goals are set using designated "goal emojis" rather than text messages:
 - Can be Unicode, shortcode, or custom format
 
 **Goal Calculation:**
-- Count goal emojis from user's messages in the previous week
-- Sum the point values of all goal emojis
-- Result becomes user's goal for current week
+- Count goal emojis from user's messages throughout any week
+- Sum the GoalPoints from MessageLogs for user/week to get weekly goal
+- No special message tracking needed - just query and sum when needed
 
 **Example Goal Emojis:**
 - 🎯 (target) or `:dart:` = 10 points

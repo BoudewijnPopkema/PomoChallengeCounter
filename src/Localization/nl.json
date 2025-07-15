@@ -1,0 +1,95 @@
+{
+  "commands": {
+    "setup": {
+      "name": "setup",
+      "description": "Initiële bot setup voor de server",
+      "options": {
+        "language": "Server taal (en/nl, standaard: en)",
+        "category": "Discord categorie voor uitdagingen",
+        "config_role": "Rol voor bot configuratie permissies",
+        "ping_role": "Rol om te pingen voor nieuwe threads"
+      }
+    },
+    "config": {
+      "category": {
+        "name": "categorie",
+        "description": "Stel de categorie in waar uitdagingen worden aangemaakt"
+      },
+      "language": {
+        "name": "taal",
+        "description": "Stel server taal in"
+      },
+      "roles": {
+        "name": "rollen",
+        "description": "Configureer bot permissie rollen"
+      }
+    },
+    "challenge": {
+      "create": {
+        "name": "creeer",
+        "description": "Maak een nieuwe pomodoro uitdaging"
+      },
+      "start": {
+        "name": "start",
+        "description": "Start de huidige uitdaging"
+      },
+      "stop": {
+        "name": "stop",
+        "description": "Stop de huidige uitdaging"
+      },
+      "info": {
+        "name": "info",
+        "description": "Toon uitdaging informatie"
+      },
+      "list": {
+        "name": "lijst",
+        "description": "Toon alle uitdagingen voor de server"
+      },
+      "import": {
+        "name": "importeer",
+        "description": "Importeer bestaande uitdaging van Discord kanaal"
+      },
+      "deactivate": {
+        "name": "deactiveer",
+        "description": "Deactiveer uitdaging zonder Discord content te verwijderen"
+      }
+    },
+    "emoji": {
+      "add": {
+        "name": "toevoegen",
+        "description": "Voeg emoji toe aan het systeem"
+      },
+      "remove": {
+        "name": "verwijderen",
+        "description": "Verwijder emoji van het systeem"
+      },
+      "list": {
+        "name": "lijst",
+        "description": "Toon alle geconfigureerde emojis"
+      },
+      "edit": {
+        "name": "bewerken",
+        "description": "Bewerk bestaande emoji configuratie"
+      }
+    }
+  },
+  "responses": {
+    "setup_success": "Bot setup succesvol voltooid!",
+    "challenge_created": "Uitdaging '{0}' succesvol aangemaakt!",
+    "challenge_started": "Uitdaging '{0}' is gestart!",
+    "challenge_stopped": "Uitdaging '{0}' is gestopt!",
+    "emoji_added": "Emoji {0} toegevoegd met {1} punten!",
+    "leaderboard_title": "📊 Week {0} Ranglijst - {1}",
+    "goal_achieved": "🎯 Doel behaald!",
+    "thread_created": "Nieuwe week thread aangemaakt: {0}"
+  },
+  "errors": {
+    "no_permission": "Je hebt geen toestemming om deze command te gebruiken",
+    "invalid_date": "Ongeldig datum formaat. Gebruik YYYY-MM-DD",
+    "invalid_emoji": "Ongeldig emoji formaat",
+    "challenge_not_found": "Uitdaging niet gevonden",
+    "emoji_not_found": "Emoji configuratie niet gevonden",
+    "database_error": "Database fout opgetreden",
+    "discord_error": "Discord API fout opgetreden"
+  }
+} 

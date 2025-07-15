@@ -87,6 +87,36 @@ See [`technical-specifications.md`](technical-specifications.md) for detailed im
 - Keep classes focused and small
 - Use composition over inheritance
 - Simple encapsulation
+- **Primary Constructors**: Use C# 12 primary constructor syntax where possible
+- **Explicit Access Modifiers**: Always specify public/private/internal/protected explicitly
+
+### Modern C# Patterns
+```csharp
+// Good: Primary constructor with explicit access modifiers
+public class UserService(IDbContext context, ILogger<UserService> logger)
+{
+    private readonly IDbContext _context = context;
+    private readonly ILogger<UserService> _logger = logger;
+    
+    public async Task<User> GetUserAsync(ulong userId)
+    {
+        // Implementation
+    }
+}
+
+// Avoid: Traditional constructor when primary constructor is available
+public class UserService 
+{
+    private readonly IDbContext _context;
+    private readonly ILogger<UserService> _logger;
+    
+    public UserService(IDbContext context, ILogger<UserService> logger)
+    {
+        _context = context;
+        _logger = logger;
+    }
+}
+```
 
 ## Configuration & Security
 

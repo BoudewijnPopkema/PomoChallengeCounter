@@ -1,0 +1,95 @@
+{
+  "commands": {
+    "setup": {
+      "name": "setup",
+      "description": "Initial bot setup for the server",
+      "options": {
+        "language": "Server language (en/nl, default: en)",
+        "category": "Discord category for challenges",
+        "config_role": "Role for bot configuration permissions",
+        "ping_role": "Role to ping for new threads"
+      }
+    },
+    "config": {
+      "category": {
+        "name": "category",
+        "description": "Set the category where challenges are created"
+      },
+      "language": {
+        "name": "language", 
+        "description": "Set server language"
+      },
+      "roles": {
+        "name": "roles",
+        "description": "Configure bot permission roles"
+      }
+    },
+    "challenge": {
+      "create": {
+        "name": "create",
+        "description": "Create a new pomodoro challenge"
+      },
+      "start": {
+        "name": "start",
+        "description": "Start the current challenge"
+      },
+      "stop": {
+        "name": "stop", 
+        "description": "Stop the current challenge"
+      },
+      "info": {
+        "name": "info",
+        "description": "Display challenge information"
+      },
+      "list": {
+        "name": "list",
+        "description": "List all challenges for the server"
+      },
+      "import": {
+        "name": "import",
+        "description": "Import existing challenge from Discord channel"
+      },
+      "deactivate": {
+        "name": "deactivate",
+        "description": "Deactivate challenge without deleting Discord content"
+      }
+    },
+    "emoji": {
+      "add": {
+        "name": "add",
+        "description": "Add emoji to the system"
+      },
+      "remove": {
+        "name": "remove",
+        "description": "Remove emoji from the system"
+      },
+      "list": {
+        "name": "list",
+        "description": "List all configured emojis"
+      },
+      "edit": {
+        "name": "edit",
+        "description": "Edit existing emoji configuration"
+      }
+    }
+  },
+  "responses": {
+    "setup_success": "Bot setup completed successfully!",
+    "challenge_created": "Challenge '{0}' created successfully!",
+    "challenge_started": "Challenge '{0}' has been started!",
+    "challenge_stopped": "Challenge '{0}' has been stopped!",
+    "emoji_added": "Emoji {0} added with {1} points!",
+    "leaderboard_title": "📊 Week {0} Leaderboard - {1}",
+    "goal_achieved": "🎯 Goal achieved!",
+    "thread_created": "New week thread created: {0}"
+  },
+  "errors": {
+    "no_permission": "You don't have permission to use this command",
+    "invalid_date": "Invalid date format. Use YYYY-MM-DD",
+    "invalid_emoji": "Invalid emoji format",
+    "challenge_not_found": "Challenge not found",
+    "emoji_not_found": "Emoji configuration not found",
+    "database_error": "Database error occurred",
+    "discord_error": "Discord API error occurred"
+  }
+} 

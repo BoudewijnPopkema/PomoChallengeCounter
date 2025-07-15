@@ -71,10 +71,10 @@ Instead of creating new challenge, import existing one:
 **Week Date Calculation**: Week start/end dates computed from challenge dates and week number, not stored in database
 
 #### Tuesday (Leaderboard Day)
-1. **Week Rescan**: Rescan entire previous week for any message edits
-2. **Point Recalculation**: Update database with any changes from edits
+1. **Week Rescan**: Rescan entire previous week using `RescanWeekAsync()` to catch any message edits
+2. **Point Recalculation**: Reprocess all messages with `forceReprocess=true` to update any changes
 3. **Leaderboard Generation**: Bot runs at 12pm (configurable)
-4. **Point Calculation**: Sum all emoji values from previous week
+4. **Point Calculation**: Sum all emoji values from MessageLogs for previous week
 5. **Goal Achievement**: Check if users met their goals (pomodoro points + bonus points >= goal points)
 6. **Reward Assignment**: Random reward emoji for goal achievers
 7. **Ranking**: Sort users by total points (descending)

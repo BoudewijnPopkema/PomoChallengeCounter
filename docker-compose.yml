@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+      - DATABASE_HOST=postgres
+      - DATABASE_NAME=pomodoro_bot
+      - DATABASE_USER=pomodoro_user
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - pomodoro-network
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=pomodoro_bot
+      - POSTGRES_USER=pomodoro_user
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    ports:
+      - "5432:5432"  # Optional: for database access
+    networks:
+      - pomodoro-network
+
+volumes:
+  postgres_data:
+
+networks:
+  pomodoro-network:
+    driver: bridge 
