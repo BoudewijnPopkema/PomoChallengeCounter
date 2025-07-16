@@ -142,7 +142,7 @@ Database uses PostgreSQL enum: `EmojiTypeEnum` (defined in database schema)
 - **Start Date**: Must be Monday (`startDate.DayOfWeek == DayOfWeek.Monday`)
 - **End Date**: Must be Sunday (`endDate.DayOfWeek == DayOfWeek.Sunday`)
 - **Week Count**: Must equal `(endDate - startDate).Days / 7 + 1`
-- **Quarter**: Must be 1-4
+- **Semester**: Must be 1-5 (1-4: regular semesters, 5: summer semester)
 - **Theme**: 1-255 characters, no special characters
 
 ### Emoji Validation
@@ -201,7 +201,7 @@ Database uses PostgreSQL enum: `EmojiTypeEnum` (defined in database schema)
 
 ### Thread Pattern Detection
 - **Pattern**: `^Q\d+-week\d+$` (case insensitive)
-- **Examples**: `Q3-week1`, `Q2-week12`, `q1-week3`
+- **Examples**: `Q3-week1`, `Q2-week12`, `Q5-week3` (where Q[N] represents semester 1-5)
 - **Goal Thread**: `^Q\d+-inzet$` or similar pattern (Dutch for "goal")
 
 ## Import Command Processing
@@ -223,4 +223,41 @@ Database uses PostgreSQL enum: `EmojiTypeEnum` (defined in database schema)
 ### Scheduling Adjustments
 - **Monday 09:00**: Convert from configured timezone (default Amsterdam) to UTC for scheduling
 - **Tuesday 12:00**: Convert from configured timezone (default Amsterdam) to UTC for scheduling
-- **DST Handling**: Use proper timezone libraries for DST transitions 
+- **DST Handling**: Use proper timezone libraries for DST transitions
+
+## Testing Patterns
+
+### Time Provider Abstraction
+Use `ITimeProvider` interface for all time-dependent operations:
+
+```csharp
+public interface ITimeProvider
+{
+    DateTime Now { get; }
+    DateTime UtcNow { get; }
+    DateOnly Today { get; }
+    DateOnly UtcToday { get; }
+}
+
+public class SystemTimeProvider : ITimeProvider
+{
+    public DateTime Now => DateTime.Now;
+    public DateTime UtcNow => DateTime.UtcNow;
+    public DateOnly Today => DateOnly.FromDateTime(DateTime.Now);
+    public DateOnly UtcToday => DateOnly.FromDateTime(DateTime.UtcNow);
+}
+```
+
+### Testing Strategy
+- **Unit Tests Required**: All business logic must have comprehensive unit test coverage
+- **Critical Test Areas**:
+  - Discord command handlers
+  - Message processing and event handling
+  - Background scheduling services
+  - Leaderboard generation algorithms
+  - Challenge management operations
+  - Goal tracking and achievement systems
+  - Week detection and thread pattern matching
+- **Mock Dependencies**: Use mocks for Discord API, database contexts, external services
+- **Time Manipulation**: Use MockTimeProvider for testing scheduled operations
+- **Integration Tests**: Use in-memory database for data persistence testing 

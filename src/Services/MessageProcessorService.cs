@@ -35,21 +35,49 @@ public class MessageProcessorService(
                 return new MessageProcessingResult { IsSuccess = false, Reason = "No active week" };
             }
 
-            // Detect emojis in the message
+            return await ProcessMessageForWeekAsync(messageId, userId, messageContent, week, forceReprocess);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to process message {MessageId}", messageId);
+            return new MessageProcessingResult { IsSuccess = false, Reason = "Processing error" };
+        }
+    }
+
+    private async Task<MessageProcessingResult> ProcessMessageForWeekAsync(ulong messageId, ulong userId, string messageContent, Week week, bool forceReprocess = false)
+    {
+        try
+        {
+            MessageLog? existingLog;
+            if (!forceReprocess)
+            {
+                existingLog = await context.MessageLogs
+                    .FirstOrDefaultAsync(ml => ml.MessageId == messageId);
+                    
+                if (existingLog != null)
+                {
+                    logger.LogDebug("Message {MessageId} already processed, skipping", messageId);
+                    return new MessageProcessingResult { IsSuccess = false, Reason = "Already processed" };
+                }
+            }
+            else
+            {
+                existingLog = await context.MessageLogs
+                    .FirstOrDefaultAsync(ml => ml.MessageId == messageId);
+            }
+            
             var detectionResult = emojiService.DetectEmojis(messageContent);
             if (detectionResult.TotalCount == 0)
             {
                 logger.LogDebug("No emojis detected in message {MessageId}", messageId);
                 return new MessageProcessingResult { IsSuccess = false, Reason = "No emojis" };
             }
-
-            // Calculate points from emojis
+            
             var pointsResult = await CalculatePointsAsync(detectionResult, week.Challenge.ServerId, week.ChallengeId);
 
             MessageLog messageLog;
             if (existingLog != null)
             {
-                // Update existing log (reprocessing scenario)
                 existingLog.PomodoroPoints = pointsResult.PomodoroPoints;
                 existingLog.BonusPoints = pointsResult.BonusPoints;
                 existingLog.GoalPoints = pointsResult.GoalPoints;
@@ -59,7 +87,6 @@ public class MessageProcessorService(
             }
             else
             {
-                // Create new message log entry
                 messageLog = new MessageLog
                 {
                     MessageId = messageId,
@@ -88,7 +115,7 @@ public class MessageProcessorService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to process message {MessageId}", messageId);
+            logger.LogError(ex, "Failed to process message {MessageId} for week {WeekId}", messageId, week.Id);
             return new MessageProcessingResult { IsSuccess = false, Reason = "Processing error" };
         }
     }
@@ -166,13 +193,28 @@ public class MessageProcessorService(
 
     private async Task<Week?> FindWeekForMessageAsync(ulong? channelId)
     {
-        // TODO: Implement proper week detection based on channel/thread
-        // For now, return the current active week
-        return await context.Weeks
+        // Only process messages from specific challenge threads - no fallback
+        if (!channelId.HasValue)
+        {
+            logger.LogDebug("No channel ID provided, cannot determine week");
+            return null;
+        }
+
+        var weekByThread = await context.Weeks
             .Include(w => w.Challenge)
-            .Where(w => w.Challenge.IsActive && w.Challenge.IsCurrent)
-            .OrderByDescending(w => w.WeekNumber)
+            .Where(w => (w.ThreadId == channelId.Value || w.GoalThreadId == channelId.Value) 
+                       && w.Challenge.IsActive)
             .FirstOrDefaultAsync();
+            
+        if (weekByThread != null)
+        {
+            logger.LogDebug("Found week {WeekNumber} for challenge thread {ChannelId}", 
+                weekByThread.WeekNumber, channelId.Value);
+            return weekByThread;
+        }
+
+        logger.LogDebug("Channel {ChannelId} is not a challenge thread, ignoring message", channelId.Value);
+        return null;
     }
 
     private async Task<PointsCalculationResult> CalculatePointsAsync(EmojiDetectionResult detectionResult, ulong serverId, int challengeId)
@@ -246,10 +288,21 @@ public class MessageProcessorService(
                 logger.LogInformation("Deleted {Count} obsolete message logs", result.DeletedCount);
             }
             
+            // Get the week for direct processing (bypass channel detection)
+            var week = await context.Weeks
+                .Include(w => w.Challenge)
+                .FirstOrDefaultAsync(w => w.Id == weekId);
+                
+            if (week == null)
+            {
+                logger.LogError("Week {WeekId} not found for rescan", weekId);
+                return result;
+            }
+
             // Process all current messages
             foreach (var (messageId, userId, content) in messages)
             {
-                var processResult = await ProcessMessageAsync(messageId, userId, content, forceReprocess: true);
+                var processResult = await ProcessMessageForWeekAsync(messageId, userId, content, week, forceReprocess: true);
                 
                 if (processResult.IsSuccess)
                 {

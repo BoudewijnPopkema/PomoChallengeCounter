@@ -74,22 +74,57 @@
     }
   },
   "responses": {
-    "setup_success": "Bot setup completed successfully!",
+    "setup_success": "Bot setup completed successfully! Category: {0}",
+    "category_updated": "Challenge category updated to: {0}",
+    "language_updated": "Server language updated to: {0}",
+    "roles_updated": "Roles updated - Config role: {0}, Ping role: {1}",
     "challenge_created": "Challenge '{0}' created successfully!",
     "challenge_started": "Challenge '{0}' has been started!",
     "challenge_stopped": "Challenge '{0}' has been stopped!",
-    "emoji_added": "Emoji {0} added with {1} points!",
+    "challenge_deactivated": "Challenge '{0}' has been deactivated!",
+    "emoji_added": "Emoji {0} added with {1} points as {2} type {3}!",
+    "emoji_removed": "Emoji {0} has been removed from the system",
+    "emoji_updated": "Emoji {0} updated: {1}",
     "leaderboard_title": "📊 Week {0} Leaderboard - {1}",
     "goal_achieved": "🎯 Goal achieved!",
-    "thread_created": "New week thread created: {0}"
+    "thread_created": "Thread '{0}' created successfully: {1}",
+    "welcome_messages": [
+      "It's a new week, let's get studying! 🍅",
+      "Fresh week, time to hit the books! 💪",
+      "New week = new study goals! Let's crush them 🔥",
+      "Week {0} is here - time to ace those study sessions! ✨",
+      "Another week, another chance to master that material! 🚀",
+      "Time to turn those study sessions into pomodoro power! ⚡",
+      "New week vibes - let's make studying fun! 🎯",
+      "Ready to tackle some serious study time? Let's go! 💯"
+    ]
   },
   "errors": {
+    "guild_only": "This command can only be used in a server",
+    "admin_only": "This command requires administrator permissions",
+    "config_permission_required": "You need the configured bot management role to use this command",
+    "server_not_setup": "Server not configured yet. Run /setup first",
     "no_permission": "You don't have permission to use this command",
+    "invalid_language": "Invalid language. Use 'en' for English or 'nl' for Dutch",
     "invalid_date": "Invalid date format. Use YYYY-MM-DD",
     "invalid_emoji": "Invalid emoji format",
     "challenge_not_found": "Challenge not found",
     "emoji_not_found": "Emoji configuration not found",
     "database_error": "Database error occurred",
-    "discord_error": "Discord API error occurred"
+    "discord_error": "Discord API error occurred",
+    "category_not_found": "The specified category channel was not found",
+    "role_not_found": "The specified role was not found",
+    "validation_error": "Validation error: {0}",
+    "operation_error": "Operation failed: {0}",
+    "invalid_points": "Point value must be between 1 and 999",
+    "invalid_emoji_type": "Invalid emoji type. Use: pomodoro, bonus, goal, or reward",
+    "challenge_id_required": "Challenge ID is required for challenge-specific emojis",
+    "emoji_already_exists": "This emoji is already configured for this scope",
+    "no_changes_specified": "No changes specified. Provide points or active status to update",
+    "invalid_week_number": "Invalid week number {0}. Must be between 0 and {1}",
+    "week_already_exists": "Week {0} already exists for this challenge",
+    "category_not_configured": "No category configured. Run /setup first",
+    "ping_role_not_configured": "No ping role configured. Use /config roles to set one",
+    "week_not_found": "Week {0} not found for this challenge"
   }
 } 

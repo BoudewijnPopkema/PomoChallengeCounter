@@ -12,14 +12,14 @@ namespace PomoChallengeCounter.Tests;
 
 public class MessageProcessorServiceTests : IDisposable
 {
-    private readonly PomoChallengeDbContext context;
-    private readonly Mock<IEmojiService> mockEmojiService;
-    private readonly Mock<ILogger<MessageProcessorService>> mockLogger;
-    private readonly MessageProcessorService messageProcessor;
+    private readonly PomoChallengeDbContext _context;
+    private readonly Mock<IEmojiService> _mockEmojiService;
+    private readonly Mock<ILogger<MessageProcessorService>> _mockLogger;
+    private readonly MessageProcessorService _messageProcessor;
     
-    private Server testServer = null!;
-    private Challenge testChallenge = null!;
-    private Week testWeek = null!;
+    private Server _testServer = null!;
+    private Challenge _testChallenge = null!;
+    private Week _testWeek = null!;
 
     public MessageProcessorServiceTests()
     {
@@ -27,13 +27,13 @@ public class MessageProcessorServiceTests : IDisposable
         var options = new DbContextOptionsBuilder<PomoChallengeDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
-        context = new PomoChallengeDbContext(options);
+        _context = new PomoChallengeDbContext(options);
 
         // Setup mocks
-        mockEmojiService = new Mock<IEmojiService>();
-        mockLogger = new Mock<ILogger<MessageProcessorService>>();
+        _mockEmojiService = new Mock<IEmojiService>();
+        _mockLogger = new Mock<ILogger<MessageProcessorService>>();
         
-        messageProcessor = new MessageProcessorService(context, mockEmojiService.Object, mockLogger.Object);
+        _messageProcessor = new MessageProcessorService(_context, _mockEmojiService.Object, _mockLogger.Object);
 
         // Setup test data
         SetupTestData();
@@ -41,17 +41,17 @@ public class MessageProcessorServiceTests : IDisposable
 
     private void SetupTestData()
     {
-        testServer = new Server
+        _testServer = new Server
         {
             Id = 123456789,
             Name = "Test Server",
             Language = "en"
         };
 
-        testChallenge = new Challenge
+        _testChallenge = new Challenge
         {
-            ServerId = testServer.Id,
-            QuarterNumber = 1,
+            ServerId = _testServer.Id,
+            SemesterNumber = 1,
             Theme = "Test Challenge Theme",
             StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)),
             EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
@@ -60,23 +60,23 @@ public class MessageProcessorServiceTests : IDisposable
             IsCurrent = true
         };
 
-        testWeek = new Week
+        _testWeek = new Week
         {
-            ChallengeId = testChallenge.Id,
+            ChallengeId = _testChallenge.Id,
             WeekNumber = 1,
             ThreadId = 987654321,
-            Challenge = testChallenge
+            Challenge = _testChallenge
         };
 
-        context.Servers.Add(testServer);
-        context.Challenges.Add(testChallenge);
-        context.Weeks.Add(testWeek);
-        context.SaveChanges();
+        _context.Servers.Add(_testServer);
+        _context.Challenges.Add(_testChallenge);
+        _context.Weeks.Add(_testWeek);
+        _context.SaveChanges();
     }
 
     public void Dispose()
     {
-        context.Dispose();
+        _context.Dispose();
     }
 
     [Fact]
@@ -90,23 +90,23 @@ public class MessageProcessorServiceTests : IDisposable
         var emojiDetection = new EmojiDetectionResult();
         emojiDetection.UnicodeEmojis.Add("📚");
         
-        mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
             .Returns(emojiDetection);
 
         // Setup emoji in database
         var emoji = new Emoji
         {
-            ServerId = testServer.Id,
+            ServerId = _testServer.Id,
             EmojiCode = "📚",
             EmojiType = EmojiType.Pomodoro,
             PointValue = 25,
             IsActive = true
         };
-        context.Emojis.Add(emoji);
-        await context.SaveChangesAsync();
+        _context.Emojis.Add(emoji);
+        await _context.SaveChangesAsync();
 
-        // Act
-        var result = await messageProcessor.ProcessMessageAsync(messageId, userId, messageContent);
+        // Act - use the challenge thread ID
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, _testWeek.ThreadId);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
@@ -119,7 +119,7 @@ public class MessageProcessorServiceTests : IDisposable
         result.DetectedEmojis.ShouldBe(1);
 
         // Verify database
-        var messageLog = await context.MessageLogs.FirstAsync(ml => ml.MessageId == messageId);
+        var messageLog = await _context.MessageLogs.FirstAsync(ml => ml.MessageId == messageId);
         messageLog.ShouldNotBeNull();
         messageLog.PomodoroPoints.ShouldBe(25);
     }
@@ -137,21 +137,21 @@ public class MessageProcessorServiceTests : IDisposable
         emojiDetection.ShortcodeEmojis.Add(":tomato:");
         emojiDetection.CustomEmojis.Add("<:fire:123>");
         
-        mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
             .Returns(emojiDetection);
 
         // Setup emojis in database
         var emojis = new[]
         {
-            new Emoji { ServerId = testServer.Id, EmojiCode = "📚", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
-            new Emoji { ServerId = testServer.Id, EmojiCode = ":tomato:", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true },
-            new Emoji { ServerId = testServer.Id, EmojiCode = "<:fire:123>", EmojiType = EmojiType.Goal, PointValue = 10, IsActive = true }
+            new Emoji { ServerId = _testServer.Id, EmojiCode = "📚", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
+            new Emoji { ServerId = _testServer.Id, EmojiCode = ":tomato:", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true },
+            new Emoji { ServerId = _testServer.Id, EmojiCode = "<:fire:123>", EmojiType = EmojiType.Goal, PointValue = 10, IsActive = true }
         };
-        context.Emojis.AddRange(emojis);
-        await context.SaveChangesAsync();
+        _context.Emojis.AddRange(emojis);
+        await _context.SaveChangesAsync();
 
-        // Act
-        var result = await messageProcessor.ProcessMessageAsync(messageId, userId, messageContent);
+        // Act - use the challenge thread ID
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, _testWeek.ThreadId);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
@@ -171,15 +171,15 @@ public class MessageProcessorServiceTests : IDisposable
         
         var emojiDetection = new EmojiDetectionResult(); // Empty result
         
-        mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
             .Returns(emojiDetection);
 
-        // Act
-        var result = await messageProcessor.ProcessMessageAsync(messageId, userId, messageContent);
+        // Act - no channel ID provided
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent);
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
-        result.Reason.ShouldBe("No emojis");
+        result.Reason.ShouldBe("No active week");
         result.MessageLog.ShouldBeNull();
     }
 
@@ -196,16 +196,16 @@ public class MessageProcessorServiceTests : IDisposable
         {
             MessageId = messageId,
             UserId = userId,
-            WeekId = testWeek.Id,
+            WeekId = _testWeek.Id,
             PomodoroPoints = 25,
             BonusPoints = 0,
             GoalPoints = 0
         };
-        context.MessageLogs.Add(existingLog);
-        await context.SaveChangesAsync();
+        _context.MessageLogs.Add(existingLog);
+        await _context.SaveChangesAsync();
 
         // Act
-        var result = await messageProcessor.ProcessMessageAsync(messageId, userId, messageContent);
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent);
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -226,32 +226,32 @@ public class MessageProcessorServiceTests : IDisposable
         {
             MessageId = messageId,
             UserId = userId,
-            WeekId = testWeek.Id,
+            WeekId = _testWeek.Id,
             PomodoroPoints = 25,
             BonusPoints = 0,
             GoalPoints = 0
         };
-        context.MessageLogs.Add(existingLog);
-        await context.SaveChangesAsync();
+        _context.MessageLogs.Add(existingLog);
+        await _context.SaveChangesAsync();
 
         var emojiDetection = new EmojiDetectionResult();
         emojiDetection.UnicodeEmojis.Add("📚");
         emojiDetection.ShortcodeEmojis.Add(":tomato:");
         
-        mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
             .Returns(emojiDetection);
 
         // Setup emojis
         var emojis = new[]
         {
-            new Emoji { ServerId = testServer.Id, EmojiCode = "📚", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
-            new Emoji { ServerId = testServer.Id, EmojiCode = ":tomato:", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true }
+            new Emoji { ServerId = _testServer.Id, EmojiCode = "📚", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
+            new Emoji { ServerId = _testServer.Id, EmojiCode = ":tomato:", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true }
         };
-        context.Emojis.AddRange(emojis);
-        await context.SaveChangesAsync();
+        _context.Emojis.AddRange(emojis);
+        await _context.SaveChangesAsync();
 
-        // Act
-        var result = await messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, forceReprocess: true);
+        // Act - use the challenge thread ID
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, _testWeek.ThreadId, forceReprocess: true);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
@@ -277,22 +277,22 @@ public class MessageProcessorServiceTests : IDisposable
         var emojiDetection = new EmojiDetectionResult();
         emojiDetection.UnicodeEmojis.Add("📚");
         
-        mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
             .Returns(emojiDetection);
 
         var emoji = new Emoji
         {
-            ServerId = testServer.Id,
+            ServerId = _testServer.Id,
             EmojiCode = "📚",
             EmojiType = emojiType,
             PointValue = pointValue,
             IsActive = true
         };
-        context.Emojis.Add(emoji);
-        await context.SaveChangesAsync();
+        _context.Emojis.Add(emoji);
+        await _context.SaveChangesAsync();
 
-        // Act
-        var result = await messageProcessor.ProcessMessageAsync(messageId, userId, messageContent);
+        // Act - use the challenge thread ID
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, _testWeek.ThreadId);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
@@ -312,22 +312,22 @@ public class MessageProcessorServiceTests : IDisposable
         var emojiDetection = new EmojiDetectionResult();
         emojiDetection.UnicodeEmojis.Add("📚");
         
-        mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
             .Returns(emojiDetection);
 
         var inactiveEmoji = new Emoji
         {
-            ServerId = testServer.Id,
+            ServerId = _testServer.Id,
             EmojiCode = "📚",
             EmojiType = EmojiType.Pomodoro,
             PointValue = 25,
             IsActive = false // Inactive emoji
         };
-        context.Emojis.Add(inactiveEmoji);
-        await context.SaveChangesAsync();
+        _context.Emojis.Add(inactiveEmoji);
+        await _context.SaveChangesAsync();
 
-        // Act
-        var result = await messageProcessor.ProcessMessageAsync(messageId, userId, messageContent);
+        // Act - use the challenge thread ID
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, _testWeek.ThreadId);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
@@ -349,37 +349,37 @@ public class MessageProcessorServiceTests : IDisposable
         {
             MessageId = messageId,
             UserId = userId,
-            WeekId = testWeek.Id,
+            WeekId = _testWeek.Id,
             PomodoroPoints = 25,
             BonusPoints = 0,
             GoalPoints = 0
         };
-        context.MessageLogs.Add(existingLog);
-        await context.SaveChangesAsync();
+        _context.MessageLogs.Add(existingLog);
+        await _context.SaveChangesAsync();
 
         var emojiDetection = new EmojiDetectionResult();
         emojiDetection.UnicodeEmojis.Add("📚");
         emojiDetection.ShortcodeEmojis.Add(":tomato:");
         
-        mockEmojiService.Setup(x => x.DetectEmojis(newContent))
+        _mockEmojiService.Setup(x => x.DetectEmojis(newContent))
             .Returns(emojiDetection);
 
         // Setup emojis
         var emojis = new[]
         {
-            new Emoji { ServerId = testServer.Id, EmojiCode = "📚", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
-            new Emoji { ServerId = testServer.Id, EmojiCode = ":tomato:", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true }
+            new Emoji { ServerId = _testServer.Id, EmojiCode = "📚", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
+            new Emoji { ServerId = _testServer.Id, EmojiCode = ":tomato:", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true }
         };
-        context.Emojis.AddRange(emojis);
-        await context.SaveChangesAsync();
+        _context.Emojis.AddRange(emojis);
+        await _context.SaveChangesAsync();
 
         // Act
-        var result = await messageProcessor.UpdateMessageAsync(messageId, newContent);
+        var result = await _messageProcessor.UpdateMessageAsync(messageId, newContent);
 
         // Assert
         result.ShouldBeTrue();
         
-        var updatedLog = await context.MessageLogs.FirstAsync(ml => ml.MessageId == messageId);
+        var updatedLog = await _context.MessageLogs.FirstAsync(ml => ml.MessageId == messageId);
         updatedLog.PomodoroPoints.ShouldBe(25);
         updatedLog.BonusPoints.ShouldBe(5);
     }
@@ -392,7 +392,7 @@ public class MessageProcessorServiceTests : IDisposable
         const string newContent = "New content 📚";
 
         // Act
-        var result = await messageProcessor.UpdateMessageAsync(messageId, newContent);
+        var result = await _messageProcessor.UpdateMessageAsync(messageId, newContent);
 
         // Assert
         result.ShouldBeFalse();
@@ -409,21 +409,21 @@ public class MessageProcessorServiceTests : IDisposable
         {
             MessageId = messageId,
             UserId = userId,
-            WeekId = testWeek.Id,
+            WeekId = _testWeek.Id,
             PomodoroPoints = 25,
             BonusPoints = 0,
             GoalPoints = 0
         };
-        context.MessageLogs.Add(messageLog);
-        await context.SaveChangesAsync();
+        _context.MessageLogs.Add(messageLog);
+        await _context.SaveChangesAsync();
 
         // Act
-        var result = await messageProcessor.DeleteMessageAsync(messageId);
+        var result = await _messageProcessor.DeleteMessageAsync(messageId);
 
         // Assert
         result.ShouldBeTrue();
         
-        var deletedLog = await context.MessageLogs.FirstOrDefaultAsync(ml => ml.MessageId == messageId);
+        var deletedLog = await _context.MessageLogs.FirstOrDefaultAsync(ml => ml.MessageId == messageId);
         deletedLog.ShouldBeNull();
     }
 
@@ -434,7 +434,7 @@ public class MessageProcessorServiceTests : IDisposable
         const ulong messageId = 191919191;
 
         // Act
-        var result = await messageProcessor.DeleteMessageAsync(messageId);
+        var result = await _messageProcessor.DeleteMessageAsync(messageId);
 
         // Assert
         result.ShouldBeFalse();
@@ -444,6 +444,10 @@ public class MessageProcessorServiceTests : IDisposable
     public async Task RescanWeekAsync_WithMultipleMessages_ShouldProcessAll()
     {
         // Arrange
+        // Set up testWeek with a proper ThreadId for week detection
+        _testWeek.ThreadId = 555555555;
+        await _context.SaveChangesAsync();
+        
         var messages = new List<(ulong MessageId, ulong UserId, string Content)>
         {
             (201010101, 202020202, "Message 1 📚"),
@@ -461,27 +465,27 @@ public class MessageProcessorServiceTests : IDisposable
         var emojiDetection3 = new EmojiDetectionResult();
         emojiDetection3.ShortcodeEmojis.Add(":fire:");
 
-        mockEmojiService.Setup(x => x.DetectEmojis("Message 1 📚")).Returns(emojiDetection1);
-        mockEmojiService.Setup(x => x.DetectEmojis("Message 2 📚 :tomato:")).Returns(emojiDetection2);
-        mockEmojiService.Setup(x => x.DetectEmojis("Message 3 :fire:")).Returns(emojiDetection3);
+        _mockEmojiService.Setup(x => x.DetectEmojis("Message 1 📚")).Returns(emojiDetection1);
+        _mockEmojiService.Setup(x => x.DetectEmojis("Message 2 📚 :tomato:")).Returns(emojiDetection2);
+        _mockEmojiService.Setup(x => x.DetectEmojis("Message 3 :fire:")).Returns(emojiDetection3);
 
         // Setup emojis
         var emojis = new[]
         {
-            new Emoji { ServerId = testServer.Id, EmojiCode = "📚", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
-            new Emoji { ServerId = testServer.Id, EmojiCode = ":tomato:", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true },
-            new Emoji { ServerId = testServer.Id, EmojiCode = ":fire:", EmojiType = EmojiType.Goal, PointValue = 10, IsActive = true }
+            new Emoji { ServerId = _testServer.Id, EmojiCode = "📚", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
+            new Emoji { ServerId = _testServer.Id, EmojiCode = ":tomato:", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true },
+            new Emoji { ServerId = _testServer.Id, EmojiCode = ":fire:", EmojiType = EmojiType.Goal, PointValue = 10, IsActive = true }
         };
-        context.Emojis.AddRange(emojis);
-        await context.SaveChangesAsync();
+        _context.Emojis.AddRange(emojis);
+        await _context.SaveChangesAsync();
 
         // Act
-        var result = await messageProcessor.RescanWeekAsync(testWeek.Id, messages);
+        var result = await _messageProcessor.RescanWeekAsync(_testWeek.Id, messages);
 
         // Assert
         result.ShouldNotBeNull();
         
-        var messageLogs = await context.MessageLogs.Where(ml => ml.WeekId == testWeek.Id).ToListAsync();
+        var messageLogs = await _context.MessageLogs.Where(ml => ml.WeekId == _testWeek.Id).ToListAsync();
         messageLogs.Count.ShouldBe(3);
         
         var log1 = messageLogs.First(ml => ml.MessageId == 201010101);
@@ -493,5 +497,130 @@ public class MessageProcessorServiceTests : IDisposable
         
         var log3 = messageLogs.First(ml => ml.MessageId == 205050505);
         log3.GoalPoints.ShouldBe(10);
+    }
+
+    [Fact]
+    public async Task ProcessMessageAsync_WithMessageOutsideChallengeThread_ShouldIgnore()
+    {
+        // Arrange
+        const ulong messageId = 999999999;
+        const ulong userId = 888888888;
+        const string messageContent = "Random message with 📚 emoji";
+        const ulong randomChannelId = 123123123; // Not a challenge thread
+        
+        var emojiDetection = new EmojiDetectionResult();
+        emojiDetection.UnicodeEmojis.Add("📚");
+        
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+            .Returns(emojiDetection);
+
+        // Act
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, randomChannelId);
+
+        // Assert
+        result.IsSuccess.ShouldBeFalse();
+        result.Reason.ShouldBe("No active week");
+        result.MessageLog.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ProcessMessageAsync_WithNoChannelId_ShouldIgnore()
+    {
+        // Arrange
+        const ulong messageId = 888888888;
+        const ulong userId = 777777777;
+        const string messageContent = "Message with 📚 emoji but no channel";
+        
+        var emojiDetection = new EmojiDetectionResult();
+        emojiDetection.UnicodeEmojis.Add("📚");
+        
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+            .Returns(emojiDetection);
+
+        // Act
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, null);
+
+        // Assert
+        result.IsSuccess.ShouldBeFalse();
+        result.Reason.ShouldBe("No active week");
+        result.MessageLog.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ProcessMessageAsync_WithValidChallengeThread_ShouldProcess()
+    {
+        // Arrange
+        const ulong messageId = 777777777;
+        const ulong userId = 666666666;
+        const string messageContent = "Study session 📚";
+        
+        // Update test week to have a specific thread ID
+        _testWeek.ThreadId = 555555555;
+        await _context.SaveChangesAsync();
+        
+        var emojiDetection = new EmojiDetectionResult();
+        emojiDetection.UnicodeEmojis.Add("📚");
+        
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+            .Returns(emojiDetection);
+
+        // Setup emoji in database
+        var emoji = new Emoji
+        {
+            ServerId = _testServer.Id,
+            EmojiCode = "📚",
+            EmojiType = EmojiType.Pomodoro,
+            PointValue = 25,
+            IsActive = true
+        };
+        _context.Emojis.Add(emoji);
+        await _context.SaveChangesAsync();
+
+        // Act - use the thread ID from the test week
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, _testWeek.ThreadId);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+        result.MessageLog.ShouldNotBeNull();
+        result.MessageLog!.PomodoroPoints.ShouldBe(25);
+    }
+
+    [Fact]
+    public async Task ProcessMessageAsync_WithGoalThread_ShouldProcess()
+    {
+        // Arrange
+        const ulong messageId = 666666666;
+        const ulong userId = 555555555;
+        const string messageContent = "Goal setting 🎯";
+        
+        // Update test week to have a goal thread ID
+        _testWeek.GoalThreadId = 444444444;
+        await _context.SaveChangesAsync();
+        
+        var emojiDetection = new EmojiDetectionResult();
+        emojiDetection.UnicodeEmojis.Add("🎯");
+        
+        _mockEmojiService.Setup(x => x.DetectEmojis(messageContent))
+            .Returns(emojiDetection);
+
+        // Setup emoji in database
+        var emoji = new Emoji
+        {
+            ServerId = _testServer.Id,
+            EmojiCode = "🎯",
+            EmojiType = EmojiType.Goal,
+            PointValue = 10,
+            IsActive = true
+        };
+        _context.Emojis.Add(emoji);
+        await _context.SaveChangesAsync();
+
+        // Act - use the goal thread ID
+        var result = await _messageProcessor.ProcessMessageAsync(messageId, userId, messageContent, _testWeek.GoalThreadId);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+        result.MessageLog.ShouldNotBeNull();
+        result.MessageLog!.GoalPoints.ShouldBe(10);
     }
 } 

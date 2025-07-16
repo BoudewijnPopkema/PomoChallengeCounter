@@ -201,4 +201,29 @@ public class UserService
 - Don't spam the Discord API
 - Handle rate limits gracefully
 - Don't store sensitive data in logs
-- Test with actual Discord server 
+- Test with actual Discord server
+
+## Testing Guidelines
+
+### Test Coverage Requirements
+- **Mandatory Testing**: All business logic services must have comprehensive unit tests
+- **Test-First Approach**: Write tests alongside or before implementation
+- **Critical Areas**: 
+  - Command handlers and Discord interactions
+  - Message processing and emoji detection
+  - Scheduling and background tasks
+  - Leaderboard calculations
+  - Challenge lifecycle management
+  - Goal tracking with reward systems
+
+### Time-Dependent Testing
+- **ITimeProvider Pattern**: Use time abstraction for testable scheduled operations
+- **Mock Time**: Manipulate time in tests for scheduling scenarios
+- **Timezone Testing**: Test DST transitions and timezone conversions
+
+### Test Structure
+- **Clear Naming**: Use descriptive test method names (Given_When_Then pattern)
+- **Arrange/Act/Assert**: Follow AAA pattern consistently
+- **Test Isolation**: Each test should be independent and repeatable
+- **Edge Cases**: Test boundary conditions, error scenarios, and invalid inputs
+- **Mock External Dependencies**: Discord API, database, time, external services 

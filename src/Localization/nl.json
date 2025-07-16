@@ -74,22 +74,57 @@
     }
   },
   "responses": {
-    "setup_success": "Bot setup succesvol voltooid!",
+    "setup_success": "Bot setup succesvol voltooid! Categorie: {0}",
+    "category_updated": "Challenge categorie geüpdatet naar: {0}",
+    "language_updated": "Server taal geüpdatet naar: {0}",
+    "roles_updated": "Rollen geüpdatet - Config rol: {0}, Ping rol: {1}",
     "challenge_created": "Uitdaging '{0}' succesvol aangemaakt!",
     "challenge_started": "Uitdaging '{0}' is gestart!",
     "challenge_stopped": "Uitdaging '{0}' is gestopt!",
-    "emoji_added": "Emoji {0} toegevoegd met {1} punten!",
+    "challenge_deactivated": "Uitdaging '{0}' is gedeactiveerd!",
+    "emoji_added": "Emoji {0} toegevoegd met {1} punten als {2} type {3}!",
+    "emoji_removed": "Emoji {0} is verwijderd van het systeem",
+    "emoji_updated": "Emoji {0} geüpdatet: {1}",
     "leaderboard_title": "📊 Week {0} Ranglijst - {1}",
     "goal_achieved": "🎯 Doel behaald!",
-    "thread_created": "Nieuwe week thread aangemaakt: {0}"
+    "thread_created": "Thread '{0}' succesvol aangemaakt: {1}",
+    "welcome_messages": [
+      "Nieuwe week, tijd om te studeren! Laten we dit doen 🍅",
+      "Week {0} is begonnen - tijd om te blokken! 💪",
+      "Fresh week vibes! Op naar die studiesessies 🔥",
+      "Nieuwe week, nieuwe kansen om te leren! ✨",
+      "Laten we deze week weer lekker studeren! 🚀",
+      "Time voor focus en kennis opdoen! ⚡",
+      "Nieuwe week = nieuwe leerstof! Let's go 🎯",
+      "Klaar voor een week vol studeren? Laten we knallen! 💯"
+    ]
   },
   "errors": {
+    "guild_only": "Deze command kan alleen gebruikt worden in een server",
+    "admin_only": "Deze command vereist administrator permissies",
+    "config_permission_required": "Je hebt de geconfigureerde bot management rol nodig om deze command te gebruiken",
+    "server_not_setup": "Server nog niet geconfigureerd. Voer eerst /setup uit",
     "no_permission": "Je hebt geen toestemming om deze command te gebruiken",
+    "invalid_language": "Ongeldige taal. Gebruik 'en' voor Engels of 'nl' voor Nederlands",
     "invalid_date": "Ongeldig datum formaat. Gebruik YYYY-MM-DD",
     "invalid_emoji": "Ongeldig emoji formaat",
     "challenge_not_found": "Uitdaging niet gevonden",
     "emoji_not_found": "Emoji configuratie niet gevonden",
     "database_error": "Database fout opgetreden",
-    "discord_error": "Discord API fout opgetreden"
+    "discord_error": "Discord API fout opgetreden",
+    "category_not_found": "De opgegeven categorie kanaal is niet gevonden",
+    "role_not_found": "De opgegeven rol is niet gevonden",
+    "validation_error": "Validatie fout: {0}",
+    "operation_error": "Operatie gefaald: {0}",
+    "invalid_points": "Punt waarde moet tussen 1 en 999 zijn",
+    "invalid_emoji_type": "Ongeldig emoji type. Gebruik: pomodoro, bonus, goal, of reward",
+    "challenge_id_required": "Challenge ID is vereist voor challenge-specifieke emojis",
+    "emoji_already_exists": "Deze emoji is al geconfigureerd voor deze scope",
+    "no_changes_specified": "Geen wijzigingen opgegeven. Geef punten of actieve status op om te updaten",
+    "invalid_week_number": "Ongeldig week nummer {0}. Moet tussen 0 en {1} zijn",
+    "week_already_exists": "Week {0} bestaat al voor deze uitdaging",
+    "category_not_configured": "Geen categorie geconfigureerd. Voer eerst /setup uit",
+    "ping_role_not_configured": "Geen ping rol geconfigureerd. Gebruik /config roles om er een in te stellen",
+    "week_not_found": "Week {0} niet gevonden voor deze uitdaging"
   }
 } 

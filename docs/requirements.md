@@ -25,10 +25,10 @@ Current manual process of copying Discord chat to Java application for pomodoro 
 - **Validation**: Number of weeks must match date range
 
 ### 3. Weekly Workflow
-- **Monday**: New thread created (format: Q3-week2)
-- **Tuesday 12pm**: Previous week leaderboard posted
+- **Monday**: New thread created (format: Q[semester]-week[N], e.g., Q3-week2)
+- **Tuesday 12pm**: Previous week leaderboard posted, sum of emojis for that week per student and their total throughout that challenge so far
 - **Throughout week**: Students post emoji messages for pomodoros
-- **End of week**: Students set goals for next week
+- **End of week**: Students set goals for next week (can be done at any point during the week as long as it is in that week's thread)
 
 ### 4. Point System
 - **Pomodoros**: 30-minute study intervals
@@ -50,10 +50,9 @@ Current manual process of copying Discord chat to Java application for pomodoro 
 
 ### Discord Integration
 - **API**: Discord.NET for C# integration
-- **Message processing**: Automatic emoji parsing via events and batch processing
+- **Message processing**: Automatic emoji parsing via events for new messages, edits and deletions
 - **Thread management**: Automated creation/management
 - **Scheduling**: Automated weekly tasks
-- **Message editing**: Process edits for any week within active challenges
 - **Challenge deactivation**: Stop processing edits when challenge becomes inactive
 - **Week rescanning**: Rescan entire week before leaderboard generation
 - **Import capability**: Retroactive processing of existing messages

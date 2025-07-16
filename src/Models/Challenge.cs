@@ -12,7 +12,7 @@ public class Challenge
     public ulong ServerId { get; set; }
     
     [Required]
-    public int QuarterNumber { get; set; } // Q1, Q2, Q3, Q4
+    public int SemesterNumber { get; set; } // S1, S2, S3, S4, S5 (1-4: regular semesters, 5: summer)
     
     [Required]
     [MaxLength(255)]

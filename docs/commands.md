@@ -46,7 +46,7 @@
 **Permission**: Admin/Config  
 **Description**: Create a new pomodoro challenge  
 **Parameters**:
-- `quarter`: Quarter number (1-4)
+- `semester`: Semester number (1-5: regular semesters 1-4, summer semester 5)
 - `theme`: Challenge theme name
 - `start_date`: Challenge start date (YYYY-MM-DD, must be Monday)
 - `end_date`: Challenge end date (YYYY-MM-DD, must be Sunday)
@@ -54,7 +54,7 @@
 
 **Example**:
 ```
-/challenge create quarter:3 theme:"Space Exploration" start_date:2024-01-08 end_date:2024-03-31 weeks:12
+/challenge create semester:3 theme:"Space Exploration" start_date:2024-01-08 end_date:2024-03-31 weeks:12
 ```
 
 ### `/challenge start`
@@ -85,12 +85,12 @@
 **Description**: Import existing challenge from Discord channel  
 **Parameters**:
 - `channel`: Discord channel containing the challenge
-- `quarter`: Quarter number (1-4)
+- `semester`: Semester number (1-5: regular semesters 1-4, summer semester 5)
 - `theme`: Challenge theme name
 
 **Example**:
 ```
-/challenge import channel:#q3-space-exploration quarter:3 theme:"Space Exploration"
+/challenge import channel:#q3-space-exploration semester:3 theme:"Space Exploration"
 ```
 
 **Behavior**:

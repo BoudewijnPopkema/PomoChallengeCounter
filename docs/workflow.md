@@ -21,7 +21,7 @@ This document describes the complete workflow for running a pomodoro challenge f
 
 ### 3. Challenge Setup
 1. **Create Challenge**: Admin runs `/challenge create` with:
-   - Quarter number (Q1, Q2, Q3, Q4)
+   - Semester number (1-5: 1-4 regular semesters, 5 summer) displayed as Q[N] in thread names
    - Theme name
    - Start date (Monday)
    - End date (Sunday)
@@ -39,7 +39,7 @@ This document describes the complete workflow for running a pomodoro challenge f
 ### 4.1 Alternative: Import Existing Challenge
 Instead of creating new challenge, import existing one:
 1. **Challenge Import**: Admin runs `/challenge import` on existing channel
-2. **Thread Detection**: Bot scans for threads matching pattern (Q3-week1, etc.)
+2. **Thread Detection**: Bot scans for threads matching pattern (Q[semester]-week[N], e.g., Q3-week1)
 3. **Week 0 Creation**: Bot creates week 0 record for goal collection (no specific thread pattern)
 4. **Retroactive Processing**: Bot processes all existing messages for emoji points
 5. **Database Population**: Creates challenge, weeks, and user progress records
@@ -49,8 +49,8 @@ Instead of creating new challenge, import existing one:
 
 ### 5. Challenge Start (Monday Week 1)
 1. **Start Command**: Admin runs `/challenge start`
-2. **Goal Thread**: Bot creates "Q3-inzet" (goal setting) thread for week 0
-3. **Week 1 Thread**: Bot creates "Q3-week1" thread
+2. **Goal Thread**: Bot creates "Q[semester]-inzet" (goal setting) thread for week 0
+3. **Week 1 Thread**: Bot creates "Q[semester]-week1" thread
 4. **Role Ping**: Configured role is pinged in both threads
 5. **Status Update**: Challenge marked as active
 
@@ -63,7 +63,7 @@ Instead of creating new challenge, import existing one:
 ### 7. Weekly Cycle (Weeks 2-N)
 
 #### Monday (New Week Start)
-1. **Thread Creation**: Bot creates "Q3-week[N]" thread at 09:00 (Amsterdam time)
+1. **Thread Creation**: Bot creates "Q[semester]-week[N]" thread at 09:00 (Amsterdam time)
 2. **Role Ping**: Ping configured role in new thread
 3. **Week Transition**: Previous week marked as complete
 4. **Goal Collection**: Bot processes goal emojis from previous week's messages
@@ -102,7 +102,7 @@ Instead of creating new challenge, import existing one:
 - **Deactivation Trigger**: Challenge deactivated after end date + final leaderboard posted
 
 #### Retroactive Processing (Import Command)
-1. **Thread Discovery**: Scan channel for threads matching pattern (Q3-week1, etc.)
+1. **Thread Discovery**: Scan channel for threads matching pattern (Q[semester]-week[N], e.g., Q3-week1)
 2. **Message Batching**: Retrieve messages in Discord API batches of 100
 3. **Rate Limiting**: Add delays between batches to respect API limits
 4. **Chronological Processing**: Process messages from oldest to newest

@@ -5,6 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Services;
 using Serilog;
+using NetCord;
+using NetCord.Gateway;
+using NetCord.Hosting.Gateway;
+using NetCord.Hosting.Services.ApplicationCommands;
+using NetCord.Hosting.Services.Commands;
+using Microsoft.Extensions.Logging;
 
 namespace PomoChallengeCounter;
 
@@ -25,6 +31,9 @@ internal static class Program
 
             var host = CreateHostBuilder(args).Build();
             
+            // ApplicationCommandModules are automatically discovered by NetCord
+            // MessageHandlingService will subscribe to gateway events for emoji processing
+            
             await host.RunAsync();
         }
         catch (Exception ex)
@@ -40,6 +49,13 @@ internal static class Program
     private static IHostBuilder CreateHostBuilder(string[] args) =>
         Host.CreateDefaultBuilder(args)
             .UseSerilog()
+            .UseDiscordGateway(options =>
+            {
+                options.Intents = GatewayIntents.Guilds | 
+                                 GatewayIntents.GuildMessages | 
+                                 GatewayIntents.MessageContent;
+            })
+            .UseApplicationCommands()
             .ConfigureServices((context, services) =>
             {
                 // Configure Entity Framework DbContext
@@ -48,19 +64,23 @@ internal static class Program
                     options.UseNpgsql(connectionString));
                 
                 // Register core services
+                services.AddSingleton<ITimeProvider, SystemTimeProvider>();
                 services.AddSingleton<LocalizationService>();
                 services.AddSingleton<EmojiService>();
                 services.AddScoped<MessageProcessorService>();
+                services.AddScoped<IChallengeService, ChallengeService>();
+                
+                // Add NetCord application commands service
+                services.AddApplicationCommands();
+                
+                // TODO: Add message processing event handler after verifying commands work
+                // services.AddGatewayEventHandler<MessageCreateHandler>();
                 
                 // Register hosted services in startup order
                 services.AddHostedService<DatabaseInitializationService>(); // 1. Database first
                 services.AddHostedService<StartupService>();               // 2. App initialization
-                services.AddHostedService<DiscordBotService>();            // 3. Discord bot last
-                
-                // TODO: Configure remaining services
-                // - Command handlers
-                // - Message processors
-                // - Background schedulers
+                services.AddHostedService<MessageHandlingService>();       // 3. Message event handling
+                services.AddHostedService<AutomationService>();            // 4. Weekly automation
                 
                 Log.Information("Services configured successfully");
             });

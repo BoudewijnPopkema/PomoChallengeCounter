@@ -9,7 +9,10 @@
 - **Future**: Extensible architecture for additional languages
 
 ### 2. Challenge Management
-- **Semester Structure**: 3-month challenges with themes
+- **Semester Structure**: Challenges with themes organized by semester numbers (1-5)
+  - **Semesters 1-4**: Regular academic semesters
+  - **Semester 5**: Summer semester
+  - **Thread Format**: Q[semester]-week[N] (e.g., Q3-week1, Q5-week3)
 - **Flexible Duration**: Configurable week count with date validation
 - **State Management**: Create → Start → Active → Complete lifecycle
 - **Import Capability**: Retroactively import existing challenges from Discord
@@ -17,7 +20,7 @@
 - **Validation**: Start/end dates must be Monday/Sunday, week count must match
 
 ### 3. Automated Thread System
-- **Weekly Threads**: Auto-created every Monday (format: Q3-week2)
+- **Weekly Threads**: Auto-created every Monday (format: Q[semester]-week[N], e.g., Q3-week2)
 - **Goal Threads**: Special thread for week 0 goal setting
 - **Week Dating**: Week dates computed from challenge dates and week number
 - **Scheduling**: Configurable timing for thread creation
@@ -139,7 +142,7 @@
 
 ### 21. Migration & Import
 - **Retroactive Import**: Import existing challenges from Discord channels
-- **Thread Pattern Recognition**: Automatically detect week threads (Q3-week1, etc.)
+- **Thread Pattern Recognition**: Automatically detect week threads (Q[semester]-week[N] format, e.g., Q3-week1)
 - **Message Processing**: Retroactively count emoji points from existing messages
 - **Seamless Transition**: Continue normal operations after import
 - **Non-destructive Deactivation**: Deactivate challenge without deleting Discord content
@@ -147,7 +150,7 @@
 ### 22. Message Processing Strategy
 - **Real-time Processing**: New messages processed immediately via Discord events
 - **Batch Processing**: Historical messages processed in chunks during import
-- **Thread Detection**: Automatic pattern matching for week threads (Q3-week1, Q3-week2, etc.)
+- **Thread Detection**: Automatic pattern matching for week threads (Q[semester]-week[N] format, e.g., Q3-week1, Q3-week2)
 - **Rate Limiting**: Respects Discord API limits with delays between message batches
 - **Edit Processing**: Message edits processed for any week within active challenges
 - **Challenge Deactivation**: Stop processing edits when challenge becomes inactive

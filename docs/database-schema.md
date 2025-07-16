@@ -25,7 +25,7 @@ Semester-based pomodoro challenges
 CREATE TABLE Challenges (
     Id SERIAL PRIMARY KEY,
     ServerId BIGINT REFERENCES Servers(Id),
-    QuarterNumber INT NOT NULL,               -- Q1, Q2, Q3, Q4
+    SemesterNumber INT NOT NULL,              -- Semester 1-5 (1-4: regular semesters, 5: summer) used in Q[N]-week format
     Theme VARCHAR(255) NOT NULL,              -- Challenge theme
     StartDate DATE NOT NULL,                  -- Monday start
     EndDate DATE NOT NULL,                    -- Sunday end
