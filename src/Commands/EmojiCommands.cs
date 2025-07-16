@@ -8,43 +8,8 @@ using PomoChallengeCounter.Models;
 
 namespace PomoChallengeCounter.Commands;
 
-public class EmojiCommands : ApplicationCommandModule<ApplicationCommandContext>
+public class EmojiCommands : BaseCommand
 {
-    public LocalizationService LocalizationService { get; set; } = null!;
-    public PomoChallengeDbContext DbContext { get; set; } = null!;
-
-    protected async Task<bool> CheckPermissionsAsync(PermissionLevel requiredLevel)
-    {
-        // TODO: Implement proper NetCord permissions checking
-        // For now, allow all commands to proceed
-        return true;
-    }
-
-    protected string GetLocalizedText(string key, params object[] args)
-    {
-        return LocalizationService.GetString(key, GetServerLanguage(), args);
-    }
-
-    private string GetServerLanguage()
-    {
-        if (Context.Guild == null) return "en";
-
-        var server = DbContext.Servers
-            .AsNoTracking()
-            .FirstOrDefault(s => s.Id == Context.Guild.Id);
-
-        return server?.Language ?? "en";
-    }
-
-    protected async Task RespondAsync(string content, bool ephemeral = false)
-    {
-        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new()
-        {
-            Content = content,
-            Flags = ephemeral ? MessageFlags.Ephemeral : null
-        }));
-    }
-
     [SlashCommand("emoji-add", "Add a new emoji for point tracking")]
     public async Task AddAsync(
         [SlashCommandParameter(Name = "emoji", Description = "The emoji to add")] string emoji,
@@ -64,12 +29,96 @@ public class EmojiCommands : ApplicationCommandModule<ApplicationCommandContext>
                 return;
             }
 
-            // TODO: Implement proper emoji validation and creation
-            await RespondAsync($"Emoji {emoji} addition is being implemented for NetCord");
+            // Validate emoji format
+            if (!EmojiService.ValidateEmojiFormat(emoji, out var format))
+            {
+                await RespondAsync("❌ Invalid emoji format. Please use a valid Discord emoji, shortcode (:like_this:), or Unicode emoji.", ephemeral: true);
+                return;
+            }
+
+            // Normalize emoji to canonical format for consistent storage
+            var normalizedEmoji = EmojiService.NormalizeEmoji(emoji);
+
+            // Validate point value  
+            if (!EmojiService.ValidatePointValue(points))
+            {
+                await RespondAsync("❌ Point value must be between 1 and 999.", ephemeral: true);
+                return;
+            }
+
+            // Parse and validate emoji type
+            if (!Enum.TryParse<EmojiType>(type, true, out var emojiType) || !Enum.IsDefined(typeof(EmojiType), emojiType))
+            {
+                var validTypes = string.Join(", ", Enum.GetNames<EmojiType>());
+                await RespondAsync($"❌ Invalid emoji type. Valid types: {validTypes}", ephemeral: true);
+                return;
+            }
+
+            // Check if challenge exists if specified
+            if (challengeId.HasValue)
+            {
+                var challengeExists = await DbContext.Challenges
+                    .AnyAsync(c => c.Id == challengeId.Value && c.ServerId == server.Id);
+                if (!challengeExists)
+                {
+                    await RespondAsync("❌ Challenge not found.", ephemeral: true);
+                    return;
+                }
+            }
+
+            // Check if emoji already exists (using normalized form for comparison)
+            var existingEmoji = await DbContext.Emojis
+                .Where(e => e.ServerId == server.Id && e.ChallengeId == challengeId && e.IsActive)
+                .ToListAsync();
+                
+            var duplicateExists = existingEmoji.Any(e => EmojiService.AreEmojisEquivalent(e.EmojiCode, normalizedEmoji));
+            
+            if (duplicateExists)
+            {
+                await RespondAsync("❌ This emoji (or its equivalent) is already configured for this server/challenge.", ephemeral: true);
+                return;
+            }
+
+            // Create new emoji record using normalized form
+            var newEmoji = new Models.Emoji
+            {
+                ServerId = server.Id,
+                ChallengeId = challengeId,
+                EmojiCode = normalizedEmoji,
+                EmojiType = emojiType,
+                PointValue = points,
+                IsActive = true
+            };
+
+            DbContext.Emojis.Add(newEmoji);
+            await DbContext.SaveChangesAsync();
+
+            // Create success embed
+            var embed = new EmbedProperties()
+                .WithTitle("✅ Emoji Added Successfully")
+                .WithColor(new Color(0x00ff00))
+                .WithDescription($"Emoji has been configured for tracking!")
+                .AddFields(
+                    new EmbedFieldProperties().WithName("Original Input").WithValue(emoji).WithInline(true),
+                    new EmbedFieldProperties().WithName("Stored As").WithValue(normalizedEmoji).WithInline(true),
+                    new EmbedFieldProperties().WithName("Type").WithValue(emojiType.ToString()).WithInline(true),
+                    new EmbedFieldProperties().WithName("Points").WithValue(points.ToString()).WithInline(true),
+                    new EmbedFieldProperties().WithName("Format").WithValue(format.ToString()).WithInline(true)
+                );
+
+            if (challengeId.HasValue)
+            {
+                embed.AddFields(new EmbedFieldProperties().WithName("Challenge ID").WithValue(challengeId.Value.ToString()).WithInline(true));
+            }
+
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new()
+            {
+                Embeds = [embed]
+            }));
         }
         catch (Exception ex)
         {
-            await RespondAsync($"Error adding emoji: {ex.Message}", ephemeral: true);
+            await RespondAsync($"❌ Error adding emoji: {ex.Message}", ephemeral: true);
         }
     }
 
@@ -137,14 +186,159 @@ public class EmojiCommands : ApplicationCommandModule<ApplicationCommandContext>
                 return;
             }
 
-            // TODO: Implement proper emoji removal
-            await RespondAsync($"Emoji {emoji} removal is being implemented for NetCord");
+            // Find the emoji to remove (only active ones)
+            var existingEmoji = await DbContext.Emojis
+                .FirstOrDefaultAsync(e => e.ServerId == server.Id 
+                                    && e.EmojiCode == emoji 
+                                    && e.IsActive);
+            
+            if (existingEmoji == null)
+            {
+                await RespondAsync("❌ Emoji not found or already removed.", ephemeral: true);
+                return;
+            }
+
+            // Deactivate the emoji (soft delete)
+            existingEmoji.IsActive = false;
+            await DbContext.SaveChangesAsync();
+
+            // Create success embed
+            var embed = new EmbedProperties()
+                .WithTitle("✅ Emoji Removed Successfully")
+                .WithColor(new Color(0xff9900))
+                .WithDescription($"Emoji {emoji} has been removed from tracking!")
+                .AddFields(
+                    new EmbedFieldProperties().WithName("Type").WithValue(existingEmoji.EmojiType.ToString()).WithInline(true),
+                    new EmbedFieldProperties().WithName("Points").WithValue(existingEmoji.PointValue.ToString()).WithInline(true)
+                );
+
+            if (existingEmoji.ChallengeId.HasValue)
+            {
+                embed.AddFields(new EmbedFieldProperties().WithName("Challenge ID").WithValue(existingEmoji.ChallengeId.Value.ToString()).WithInline(true));
+            }
+
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new()
+            {
+                Embeds = [embed]
+            }));
         }
         catch (Exception ex)
         {
-            await RespondAsync($"Error removing emoji: {ex.Message}", ephemeral: true);
+            await RespondAsync($"❌ Error removing emoji: {ex.Message}", ephemeral: true);
         }
     }
 
-    // TODO: Re-implement emoji edit functionality after basic NetCord integration is working
+    [SlashCommand("emoji-edit", "Edit an existing emoji's configuration")]
+    public async Task EditAsync(
+        [SlashCommandParameter(Name = "emoji", Description = "The emoji to edit")] string emoji,
+        [SlashCommandParameter(Name = "type", Description = "New emoji type (optional)")] string? type = null,
+        [SlashCommandParameter(Name = "points", Description = "New points value (optional)")] int? points = null)
+    {
+        if (!await CheckPermissionsAsync(PermissionLevel.Config))
+            return;
+
+        try
+        {
+            var server = await DbContext.Servers.FindAsync(Context.Guild.Id);
+            if (server == null)
+            {
+                await RespondAsync(GetLocalizedText("errors.server_not_setup"), ephemeral: true);
+                return;
+            }
+
+            // Find the emoji to edit (only active ones)
+            var existingEmoji = await DbContext.Emojis
+                .FirstOrDefaultAsync(e => e.ServerId == server.Id 
+                                    && e.EmojiCode == emoji 
+                                    && e.IsActive);
+            
+            if (existingEmoji == null)
+            {
+                await RespondAsync("❌ Emoji not found.", ephemeral: true);
+                return;
+            }
+
+            bool hasChanges = false;
+            var originalType = existingEmoji.EmojiType;
+            var originalPoints = existingEmoji.PointValue;
+
+            // Update emoji type if provided
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                if (!Enum.TryParse<EmojiType>(type, true, out var emojiType) || !Enum.IsDefined(typeof(EmojiType), emojiType))
+                {
+                    var validTypes = string.Join(", ", Enum.GetNames<EmojiType>());
+                    await RespondAsync($"❌ Invalid emoji type. Valid types: {validTypes}", ephemeral: true);
+                    return;
+                }
+
+                if (existingEmoji.EmojiType != emojiType)
+                {
+                    existingEmoji.EmojiType = emojiType;
+                    hasChanges = true;
+                }
+            }
+
+            // Update point value if provided
+            if (points.HasValue)
+            {
+                if (!EmojiService.ValidatePointValue(points.Value))
+                {
+                    await RespondAsync("❌ Point value must be between 1 and 999.", ephemeral: true);
+                    return;
+                }
+
+                if (existingEmoji.PointValue != points.Value)
+                {
+                    existingEmoji.PointValue = points.Value;
+                    hasChanges = true;
+                }
+            }
+
+            if (!hasChanges)
+            {
+                await RespondAsync("❌ No changes specified. Provide at least one parameter to update.", ephemeral: true);
+                return;
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            // Create success embed
+            var embed = new EmbedProperties()
+                .WithTitle("✅ Emoji Updated Successfully")
+                .WithColor(new Color(0x0099ff))
+                .WithDescription($"Emoji {emoji} has been updated!");
+
+            // Show changes made
+            if (originalType != existingEmoji.EmojiType)
+            {
+                embed.AddFields(new EmbedFieldProperties()
+                    .WithName("Type Changed")
+                    .WithValue($"{originalType} → {existingEmoji.EmojiType}")
+                    .WithInline(true));
+            }
+
+            if (originalPoints != existingEmoji.PointValue)
+            {
+                embed.AddFields(new EmbedFieldProperties()
+                    .WithName("Points Changed")
+                    .WithValue($"{originalPoints} → {existingEmoji.PointValue}")
+                    .WithInline(true));
+            }
+
+            if (existingEmoji.ChallengeId.HasValue)
+            {
+                embed.AddFields(new EmbedFieldProperties().WithName("Challenge ID").WithValue(existingEmoji.ChallengeId.Value.ToString()).WithInline(true));
+            }
+
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new()
+            {
+                Embeds = [embed]
+            }));
+        }
+        catch (Exception ex)
+        {
+            await RespondAsync($"❌ Error editing emoji: {ex.Message}", ephemeral: true);
+        }
+    }
 } 

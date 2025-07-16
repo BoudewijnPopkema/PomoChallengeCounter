@@ -33,7 +33,9 @@ public class MessageProcessorServiceTests : IDisposable
         _mockEmojiService = new Mock<IEmojiService>();
         _mockLogger = new Mock<ILogger<MessageProcessorService>>();
         
-        _messageProcessor = new MessageProcessorService(_context, _mockEmojiService.Object, _mockLogger.Object);
+        var mockServiceProvider = new Mock<IServiceProvider>();
+        
+        _messageProcessor = new MessageProcessorService(_context, _mockEmojiService.Object, mockServiceProvider.Object, _mockLogger.Object);
 
         // Setup test data
         SetupTestData();

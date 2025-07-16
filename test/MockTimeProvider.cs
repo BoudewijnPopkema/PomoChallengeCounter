@@ -7,7 +7,7 @@ namespace PomoChallengeCounter.Tests;
 /// </summary>
 public class MockTimeProvider : ITimeProvider
 {
-    private DateTime _fixedTime = DateTime.Now;
+    private DateTime _fixedTime = new DateTime(2023, 12, 1); // Fixed date in the past so 2024 dates are valid
     
     public DateTime Now => _fixedTime;
     

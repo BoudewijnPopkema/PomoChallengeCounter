@@ -2,11 +2,14 @@ using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using Microsoft.EntityFrameworkCore;
+using PomoChallengeCounter.Services;
 
 namespace PomoChallengeCounter.Commands;
 
 public class AdminCommands : BaseCommand
 {
+    public MessageProcessorService MessageProcessor { get; set; } = null!;
+
     [SlashCommand("stats", "View server statistics")]
     public async Task StatsAsync()
     {
@@ -212,7 +215,7 @@ public class AdminCommands : BaseCommand
                         .WithValue(
                             "`/thread-create` - Create week thread\n" +
                             "`/thread-ping` - Ping configured role\n" +
-                            "`/leaderboard` - Generate leaderboard")
+                            "`/leaderboard <week>` - Generate leaderboard for specific week")
                         .WithInline(false),
                     new EmbedFieldProperties()
                         .WithName("⚙️ Admin Tools")
@@ -240,5 +243,58 @@ public class AdminCommands : BaseCommand
         {
             Embeds = [embed]
         }));
+    }
+
+    [SlashCommand("leaderboard", "Generate a leaderboard for a specific week")]
+    public async Task GenerateLeaderboardAsync(
+        [SlashCommandParameter(Name = "week", Description = "Week number to generate leaderboard for")] int weekNumber)
+    {
+        if (!await CheckPermissionsAsync(PermissionLevel.Config))
+            return;
+
+        try
+        {
+            var server = await DbContext.Servers.FindAsync(Context.Guild.Id);
+            if (server == null)
+            {
+                await RespondAsync(GetLocalizedText("errors.server_not_setup"), ephemeral: true);
+                return;
+            }
+
+            // Get the current active challenge
+            var currentChallenge = await DbContext.Challenges
+                .Where(c => c.ServerId == server.Id && c.IsActive)
+                .FirstOrDefaultAsync();
+
+            if (currentChallenge == null)
+            {
+                await RespondAsync("No active challenge found. Please start a challenge first.", ephemeral: true);
+                return;
+            }
+
+            // Find the specific week
+            var week = await DbContext.Weeks
+                .Where(w => w.ChallengeId == currentChallenge.Id && w.WeekNumber == weekNumber)
+                .FirstOrDefaultAsync();
+
+            if (week == null)
+            {
+                await RespondAsync($"Week {weekNumber} not found in the current challenge (Semester {currentChallenge.SemesterNumber}).", ephemeral: true);
+                return;
+            }
+
+            // Generate the leaderboard embed
+            var embed = await MessageProcessor.GenerateLeaderboardEmbedAsync(week.Id);
+
+            // Send the response
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new()
+            {
+                Embeds = [embed]
+            }));
+        }
+        catch (Exception ex)
+        {
+            await RespondAsync($"Error generating leaderboard: {ex.Message}", ephemeral: true);
+        }
     }
 } 

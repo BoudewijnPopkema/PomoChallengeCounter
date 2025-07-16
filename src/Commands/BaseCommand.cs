@@ -11,6 +11,7 @@ public abstract class BaseCommand : ApplicationCommandModule<ApplicationCommandC
 {
     public LocalizationService LocalizationService { get; set; } = null!;
     public PomoChallengeDbContext DbContext { get; set; } = null!;
+    public IEmojiService EmojiService { get; set; } = null!;
 
     protected async Task<bool> CheckPermissionsAsync(PermissionLevel requiredLevel)
     {

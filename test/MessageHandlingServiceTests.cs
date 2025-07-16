@@ -166,6 +166,143 @@ public class MessageHandlingServiceTests : IDisposable
         logs[0].PomodoroPoints.ShouldBe(2); // Updated points
     }
 
+    [Fact]
+    public async Task MessageHandlingService_ShouldHandleMessageUpdates()
+    {
+        // Arrange
+        const ulong messageId = 12345;
+        const ulong userId = 67890;
+        const ulong channelId = 54321;
+        const string originalContent = "Original content 🍅";
+        const string updatedContent = "Updated content 🍅🍅";
+
+        var server = await CreateTestServerAsync();
+        await CreateTestEmojisAsync(server.Id); // Add emoji setup
+        var challenge = await CreateTestChallengeAsync(server.Id);
+        var week = await CreateTestWeekAsync(challenge.Id, channelId);
+
+        var messageProcessor = _serviceProvider.GetRequiredService<MessageProcessorService>();
+
+        // First, create the original message
+        await messageProcessor.ProcessMessageAsync(messageId, userId, originalContent, channelId);
+
+        // Verify original message was processed
+        var originalLog = await _context.MessageLogs.FirstOrDefaultAsync(ml => ml.MessageId == messageId);
+        originalLog.ShouldNotBeNull();
+        originalLog.PomodoroPoints.ShouldBe(1); // One tomato emoji
+
+        // Act - Update the message
+        var updateResult = await messageProcessor.UpdateMessageAsync(messageId, updatedContent);
+
+        // Assert
+        updateResult.ShouldBeTrue();
+
+        var updatedLog = await _context.MessageLogs.FirstOrDefaultAsync(ml => ml.MessageId == messageId);
+        updatedLog.ShouldNotBeNull();
+        updatedLog.PomodoroPoints.ShouldBe(2); // Two tomato emojis after update
+    }
+
+    [Fact]
+    public async Task MessageHandlingService_ShouldHandleMessageDeletes()
+    {
+        // Arrange
+        const ulong messageId = 12345;
+        const ulong userId = 67890;
+        const ulong channelId = 54321;
+        const string content = "Test content 🍅";
+
+        var server = await CreateTestServerAsync();
+        await CreateTestEmojisAsync(server.Id); // Add emoji setup
+        var challenge = await CreateTestChallengeAsync(server.Id);
+        var week = await CreateTestWeekAsync(challenge.Id, channelId);
+
+        var messageProcessor = _serviceProvider.GetRequiredService<MessageProcessorService>();
+
+        // First, create the message
+        await messageProcessor.ProcessMessageAsync(messageId, userId, content, channelId);
+
+        // Verify message was processed
+        var originalLog = await _context.MessageLogs.FirstOrDefaultAsync(ml => ml.MessageId == messageId);
+        originalLog.ShouldNotBeNull();
+
+        // Act - Delete the message
+        var deleteResult = await messageProcessor.DeleteMessageAsync(messageId);
+
+        // Assert
+        deleteResult.ShouldBeTrue();
+
+        var deletedLog = await _context.MessageLogs.FirstOrDefaultAsync(ml => ml.MessageId == messageId);
+        deletedLog.ShouldBeNull(); // Message should be removed from tracking
+    }
+
+    [Fact]
+    public async Task MessageHandlingService_UpdateNonExistentMessage_ShouldReturnFalse()
+    {
+        // Arrange
+        const ulong messageId = 99999;
+        const string content = "Non-existent message content";
+
+        var messageProcessor = _serviceProvider.GetRequiredService<MessageProcessorService>();
+
+        // Act
+        var updateResult = await messageProcessor.UpdateMessageAsync(messageId, content);
+
+        // Assert
+        updateResult.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task MessageHandlingService_DeleteNonExistentMessage_ShouldReturnFalse()
+    {
+        // Arrange
+        const ulong messageId = 99999;
+
+        var messageProcessor = _serviceProvider.GetRequiredService<MessageProcessorService>();
+
+        // Act
+        var deleteResult = await messageProcessor.DeleteMessageAsync(messageId);
+
+        // Assert
+        deleteResult.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task MessageHandlingService_UpdateInactiveChallenge_ShouldIgnoreUpdate()
+    {
+        // Arrange
+        const ulong messageId = 12345;
+        const ulong userId = 67890;
+        const ulong channelId = 54321;
+        const string originalContent = "Original content 🍅";
+        const string updatedContent = "Updated content 🍅🍅";
+
+        var server = await CreateTestServerAsync();
+        await CreateTestEmojisAsync(server.Id); // Add emoji setup
+        var challenge = await CreateTestChallengeAsync(server.Id, isActive: false); // Inactive challenge
+        var week = await CreateTestWeekAsync(challenge.Id, channelId);
+
+        var messageProcessor = _serviceProvider.GetRequiredService<MessageProcessorService>();
+
+        // First, create the message (should work even if challenge becomes inactive later)
+        challenge.IsActive = true;
+        await _context.SaveChangesAsync();
+        await messageProcessor.ProcessMessageAsync(messageId, userId, originalContent, channelId);
+        
+        // Make challenge inactive
+        challenge.IsActive = false;
+        await _context.SaveChangesAsync();
+
+        // Act - Try to update the message (should be ignored for inactive challenge)
+        var updateResult = await messageProcessor.UpdateMessageAsync(messageId, updatedContent);
+
+        // Assert
+        updateResult.ShouldBeFalse(); // Update should be rejected for inactive challenge
+
+        var log = await _context.MessageLogs.FirstOrDefaultAsync(ml => ml.MessageId == messageId);
+        log.ShouldNotBeNull();
+        log.PomodoroPoints.ShouldBe(1); // Should still have original points, not updated
+    }
+
     private async Task SetupActiveChallenge()
     {
         var server = new Server { Id = 999, Name = "Test Server" };
@@ -203,6 +340,67 @@ public class MessageHandlingServiceTests : IDisposable
         };
         await _context.Emojis.AddAsync(emoji);
 
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task<Server> CreateTestServerAsync(ulong serverId = 12345)
+    {
+        var server = new Server
+        {
+            Id = serverId,
+            Name = "Test Server",
+            Language = "en"
+        };
+        
+        await _context.Servers.AddAsync(server);
+        await _context.SaveChangesAsync();
+        return server;
+    }
+
+    private async Task<Challenge> CreateTestChallengeAsync(ulong serverId, bool isActive = true)
+    {
+        var challenge = new Challenge
+        {
+            ServerId = serverId,
+            SemesterNumber = 3,
+            Theme = "Test Theme",
+            StartDate = new DateOnly(2024, 1, 8),
+            EndDate = new DateOnly(2024, 3, 31),
+            WeekCount = 12,
+            IsActive = isActive,
+            IsStarted = true,
+            IsCurrent = true
+        };
+        
+        await _context.Challenges.AddAsync(challenge);
+        await _context.SaveChangesAsync();
+        return challenge;
+    }
+
+    private async Task<Week> CreateTestWeekAsync(int challengeId, ulong threadId)
+    {
+        var week = new Week
+        {
+            ChallengeId = challengeId,
+            WeekNumber = 1,
+            ThreadId = threadId,
+            LeaderboardPosted = false
+        };
+        
+        await _context.Weeks.AddAsync(week);
+        await _context.SaveChangesAsync();
+        return week;
+    }
+
+    private async Task CreateTestEmojisAsync(ulong serverId)
+    {
+        var emojis = new[]
+        {
+            new Emoji { ServerId = serverId, EmojiCode = "🍅", EmojiType = EmojiType.Pomodoro, PointValue = 1, IsActive = true },
+            new Emoji { ServerId = serverId, EmojiCode = "⭐", EmojiType = EmojiType.Bonus, PointValue = 2, IsActive = true }
+        };
+        
+        await _context.Emojis.AddRangeAsync(emojis);
         await _context.SaveChangesAsync();
     }
 

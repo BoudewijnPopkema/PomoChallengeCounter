@@ -7,43 +7,8 @@ using PomoChallengeCounter.Services;
 
 namespace PomoChallengeCounter.Commands;
 
-public class ConfigCommands : ApplicationCommandModule<ApplicationCommandContext>
+public class ConfigCommands : BaseCommand
 {
-    public LocalizationService LocalizationService { get; set; } = null!;
-    public PomoChallengeDbContext DbContext { get; set; } = null!;
-
-    protected async Task<bool> CheckPermissionsAsync(PermissionLevel requiredLevel)
-    {
-        // TODO: Implement proper NetCord permissions checking
-        // For now, allow all commands to proceed
-        return true;
-    }
-
-    protected string GetLocalizedText(string key, params object[] args)
-    {
-        return LocalizationService.GetString(key, GetServerLanguage(), args);
-    }
-
-    private string GetServerLanguage()
-    {
-        if (Context.Guild == null) return "en";
-
-        var server = DbContext.Servers
-            .AsNoTracking()
-            .FirstOrDefault(s => s.Id == Context.Guild.Id);
-
-        return server?.Language ?? "en";
-    }
-
-    protected async Task RespondAsync(string content, bool ephemeral = false)
-    {
-        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new()
-        {
-            Content = content,
-            Flags = ephemeral ? MessageFlags.Ephemeral : null
-        }));
-    }
-
     [SlashCommand("config-category", "Set the category where challenges are created")]
     public async Task CategoryAsync(
         [SlashCommandParameter(Name = "category", Description = "Discord category for challenges")] Channel category)

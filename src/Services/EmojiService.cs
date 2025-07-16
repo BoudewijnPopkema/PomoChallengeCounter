@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using PomoChallengeCounter.Models;
+using EmojiConverter = EmojiToolkit.Emoji;
 
 namespace PomoChallengeCounter.Services;
 
@@ -9,6 +10,8 @@ public interface IEmojiService
     EmojiDetectionResult DetectEmojis(string messageContent);
     bool ValidateEmojiFormat(string emojiCode, out EmojiFormat format);
     bool ValidatePointValue(int pointValue);
+    string NormalizeEmoji(string emojiCode);
+    bool AreEmojisEquivalent(string emoji1, string emoji2);
 }
 
 public partial class EmojiService(ILogger<EmojiService> logger) : IEmojiService
@@ -133,6 +136,94 @@ public partial class EmojiService(ILogger<EmojiService> logger) : IEmojiService
     public bool IsAnimatedCustomEmoji(string customEmojiCode)
     {
         return customEmojiCode.StartsWith("<a:");
+    }
+
+    public string NormalizeEmoji(string emojiCode)
+    {
+        if (string.IsNullOrWhiteSpace(emojiCode))
+            return string.Empty;
+
+        try
+        {
+            // If it's already a shortcode, return as-is
+            if (ShortcodeRegex().IsMatch(emojiCode))
+                return emojiCode;
+
+            // If it's a custom Discord emoji, return as-is (can't normalize these)
+            if (CustomEmojiRegex().IsMatch(emojiCode))
+                return emojiCode;
+
+            // If it's a Unicode emoji, convert to shortcode for normalization
+            if (UnicodeEmojiRegex().IsMatch(emojiCode))
+            {
+                var shortcode = EmojiConverter.Shortcode(emojiCode);
+                // If conversion was successful and returned a valid shortcode, use it
+                if (!string.IsNullOrEmpty(shortcode) && shortcode != emojiCode)
+                    return shortcode;
+            }
+
+            // Return original if no conversion was possible
+            return emojiCode;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to normalize emoji {EmojiCode}", emojiCode);
+            return emojiCode;
+        }
+    }
+
+    public bool AreEmojisEquivalent(string emoji1, string emoji2)
+    {
+        try
+        {
+            // Quick equality check first
+            if (emoji1 == emoji2)
+                return true;
+
+            // Normalize both emojis to their canonical form (shortcode)
+            var normalized1 = NormalizeEmoji(emoji1);
+            var normalized2 = NormalizeEmoji(emoji2);
+
+            // Compare normalized forms
+            if (normalized1 == normalized2)
+                return true;
+
+            // Also try the reverse - convert both to Unicode for comparison
+            // This handles cases where one is shortcode and other is Unicode
+            var unicode1 = TryConvertToUnicode(emoji1);
+            var unicode2 = TryConvertToUnicode(emoji2);
+
+            return unicode1 == unicode2;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to compare emoji equivalence between {Emoji1} and {Emoji2}", emoji1, emoji2);
+            return false;
+        }
+    }
+
+    private string TryConvertToUnicode(string emojiCode)
+    {
+        try
+        {
+            // If already Unicode, return as-is
+            if (UnicodeEmojiRegex().IsMatch(emojiCode))
+                return emojiCode;
+
+            // If it's a shortcode, convert to Unicode
+            if (ShortcodeRegex().IsMatch(emojiCode))
+            {
+                var unicode = EmojiConverter.Raw(emojiCode);
+                return !string.IsNullOrEmpty(unicode) ? unicode : emojiCode;
+            }
+
+            // Return original if no conversion possible
+            return emojiCode;
+        }
+        catch
+        {
+            return emojiCode;
+        }
     }
 }
 

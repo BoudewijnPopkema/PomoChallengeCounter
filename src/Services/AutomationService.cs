@@ -7,6 +7,7 @@ using NetCord.Gateway;
 using NetCord.Rest;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
+using PomoChallengeCounter.Models.Results;
 using PomoChallengeCounter.Services;
 
 namespace PomoChallengeCounter.Services;
@@ -324,21 +325,72 @@ public class AutomationService(
 
         try
         {
-            // TODO: Generate and post actual leaderboard to Discord thread
-            // This would require:
-            // 1. Calculate leaderboard for the specific week
-            // 2. Format leaderboard message
-            // 3. Post to the Discord thread (week.ThreadId)
-            // 4. Mark week.LeaderboardPosted = true
-
-            // For now, just mark as posted (placeholder until Discord integration)
             using var scope = serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<PomoChallengeDbContext>();
+            var messageProcessor = scope.ServiceProvider.GetRequiredService<MessageProcessorService>();
+
+            // 1. Generate leaderboard embed using the reusable method
+            var embed = await messageProcessor.GenerateLeaderboardEmbedAsync(week.Id);
             
-            var weekToUpdate = await context.Weeks.FindAsync(week.Id);
-            if (weekToUpdate != null)
+            // Check if there's any leaderboard data by looking at the embed description
+            if (embed.Description?.Contains("No data found") == true)
             {
-                weekToUpdate.LeaderboardPosted = true;
+                logger.LogInformation("No data found for leaderboard of week {WeekNumber} in challenge {ChallengeId}", 
+                    week.WeekNumber, challenge.Id);
+                    
+                // Still mark as posted to prevent retrying
+                var weekToUpdate = await context.Weeks.FindAsync(week.Id);
+                if (weekToUpdate != null)
+                {
+                    weekToUpdate.LeaderboardPosted = true;
+                    await context.SaveChangesAsync();
+                }
+                return;
+            }
+
+            // 3. Post to the Discord thread
+            if (week.ThreadId != 0)
+            {
+                try
+                {
+                    var channel = await gatewayClient.Rest.GetChannelAsync(week.ThreadId);
+                    if (channel is TextGuildChannel textChannel)
+                    {
+                        var message = new MessageProperties()
+                        {
+                            Embeds = [embed]
+                        };
+
+                        await textChannel.SendMessageAsync(message);
+                        
+                        logger.LogInformation("Successfully posted leaderboard for week {WeekNumber} in challenge {ChallengeId} to thread {ThreadId}",
+                            week.WeekNumber, challenge.Id, week.ThreadId);
+                    }
+                    else
+                    {
+                        logger.LogWarning("Channel {ThreadId} is not a text channel, cannot post leaderboard", week.ThreadId);
+                    }
+                }
+                catch (Exception threadEx)
+                {
+                    logger.LogError(threadEx, "Failed to post leaderboard message to thread {ThreadId}", week.ThreadId);
+                    // Don't mark as posted if Discord posting failed
+                    return;
+                }
+            }
+            else
+            {
+                logger.LogWarning("Week {WeekNumber} in challenge {ChallengeId} has no thread ID, cannot post leaderboard",
+                    week.WeekNumber, challenge.Id);
+                // Don't mark as posted if there's no thread
+                return;
+            }
+
+            // 4. Mark week.LeaderboardPosted = true only if Discord posting succeeded
+            var weekToMarkPosted = await context.Weeks.FindAsync(week.Id);
+            if (weekToMarkPosted != null)
+            {
+                weekToMarkPosted.LeaderboardPosted = true;
                 await context.SaveChangesAsync();
                 
                 logger.LogInformation("Marked leaderboard as posted for week {WeekNumber} in challenge {ChallengeId}", 
@@ -350,6 +402,142 @@ public class AutomationService(
             logger.LogError(ex, "Failed to post leaderboard for week {WeekNumber} in challenge {ChallengeId}", 
                 week.WeekNumber, challenge.Id);
         }
+    }
+
+    private async Task<EmbedProperties> CreateLeaderboardEmbedAsync(
+        List<ChallengeLeaderboardEntry> leaderboardData, 
+        Week week, 
+        Challenge challenge)
+    {
+        var embed = new EmbedProperties()
+            .WithTitle($"🏆 Challenge Leaderboard - Week {week.WeekNumber}")
+            .WithColor(new Color(0xffd700)) // Gold color
+            .WithDescription($"**{challenge.Theme}** - Semester {challenge.SemesterNumber}\nRanked by total challenge score with this week's progress")
+            .WithTimestamp(DateTimeOffset.UtcNow);
+
+        // Get available reward emojis for this challenge/server
+        using var scope = serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<PomoChallengeDbContext>();
+        
+        var rewardEmojis = await context.Emojis
+            .Where(e => e.ServerId == challenge.ServerId && e.IsActive && e.EmojiType == EmojiType.Reward)
+            .Where(e => e.ChallengeId == null || e.ChallengeId == challenge.Id)
+            .OrderBy(e => e.PointValue)
+            .ToListAsync();
+
+        // Show ALL participants ranked by total challenge score
+        if (leaderboardData.Any())
+        {
+            var leaderboardText = string.Empty;
+            
+            for (int i = 0; i < leaderboardData.Count; i++)
+            {
+                var entry = leaderboardData[i];
+                var rank = i + 1;
+                var rankEmoji = GetRankEmoji(rank, rewardEmojis);
+                
+                // Format user mention and total challenge stats
+                var userName = $"<@{entry.UserId}>";
+                var totalStats = $"{entry.TotalPoints} pts total";
+                
+                if (entry.TotalPomodoroPoints > 0 || entry.TotalBonusPoints > 0)
+                {
+                    totalStats += $" ({entry.TotalPomodoroPoints}🍅";
+                    if (entry.TotalBonusPoints > 0)
+                        totalStats += $" + {entry.TotalBonusPoints}⭐";
+                    totalStats += ")";
+                }
+                
+                // Weekly progress for this week
+                var weeklyProgress = "";
+                if (entry.WeeklyPoints > 0)
+                {
+                    weeklyProgress = $" | +{entry.WeeklyPoints} this week";
+                    if (entry.WeeklyPomodoroPoints > 0 || entry.WeeklyBonusPoints > 0)
+                    {
+                        weeklyProgress += $" ({entry.WeeklyPomodoroPoints}🍅";
+                        if (entry.WeeklyBonusPoints > 0)
+                            weeklyProgress += $" + {entry.WeeklyBonusPoints}⭐";
+                        weeklyProgress += ")";
+                    }
+                }
+                
+                // Goal achievement indicator using reward emojis
+                var goalStatus = "";
+                if (entry.TotalGoalAchieved && rewardEmojis.Any())
+                {
+                    // Use first reward emoji for goal achievement
+                    var goalRewardEmoji = rewardEmojis.First().EmojiCode;
+                    goalStatus = $" {goalRewardEmoji}";
+                }
+                else if (entry.TotalGoalPoints > 0 && !entry.TotalGoalAchieved)
+                {
+                    goalStatus = $" 🎯{entry.TotalGoalPoints}";
+                }
+                
+                leaderboardText += $"{rankEmoji} **{rank}.** {userName} - {totalStats}{weeklyProgress}{goalStatus}\n";
+            }
+            
+            embed.AddFields(new EmbedFieldProperties()
+                .WithName("🏆 Challenge Leaderboard")
+                .WithValue(leaderboardText.Trim())
+                .WithInline(false));
+        }
+
+        // Add summary statistics
+        var totalParticipants = leaderboardData.Count;
+        var totalMessages = leaderboardData.Sum(x => x.TotalMessageCount);
+        var totalPoints = leaderboardData.Sum(x => x.TotalPoints);
+        var goalsAchieved = leaderboardData.Count(x => x.TotalGoalAchieved);
+        var weeklyMessages = leaderboardData.Sum(x => x.WeeklyMessageCount);
+        var weeklyPoints = leaderboardData.Sum(x => x.WeeklyPoints);
+        
+        var summaryText = $"**{totalParticipants}** participants\n" +
+                         $"**{totalPoints}** total points | **{weeklyPoints}** this week\n" +
+                         $"**{totalMessages}** total messages | **{weeklyMessages}** this week\n" +
+                         $"**{goalsAchieved}** goals achieved 🎯";
+        
+        embed.AddFields(new EmbedFieldProperties()
+            .WithName("📈 Challenge Progress")
+            .WithValue(summaryText)
+            .WithInline(true));
+
+        // Add motivational footer based on participation
+        var footerText = totalParticipants switch
+        {
+            >= 20 => "Amazing participation this week! 🚀",
+            >= 10 => "Great turnout everyone! 💪",
+            >= 5 => "Nice work this week! 📚",
+            _ => "Keep it up! Every session counts! ⭐"
+        };
+        
+        embed.WithFooter(new EmbedFooterProperties().WithText(footerText));
+
+        return embed;
+    }
+
+    private static string GetRankEmoji(int rank, List<Models.Emoji> rewardEmojis)
+    {
+        // If we have reward emojis configured, use them for top ranks
+        if (rewardEmojis.Any())
+        {
+            return rank switch
+            {
+                1 when rewardEmojis.Count >= 3 => rewardEmojis[^1].EmojiCode, // Highest value reward for 1st
+                2 when rewardEmojis.Count >= 2 => rewardEmojis[^2].EmojiCode, // Second highest for 2nd  
+                3 when rewardEmojis.Count >= 1 => rewardEmojis[^3].EmojiCode, // Third highest for 3rd
+                _ when rewardEmojis.Count >= 1 => rewardEmojis[0].EmojiCode    // Lowest reward for others
+            };
+        }
+        
+        // Fallback to default emojis if no reward emojis configured
+        return rank switch
+        {
+            1 => "🏆",
+            2 => "🥈", 
+            3 => "🥉",
+            _ => "��"
+        };
     }
 
     private async Task CreateWeekRecord(int challengeId, int weekNumber, ulong threadId, Week? existingWeek)

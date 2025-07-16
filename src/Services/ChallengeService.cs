@@ -1,5 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NetCord;
+using NetCord.Gateway;
+using NetCord.Rest;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
 using PomoChallengeCounter.Models.Results;
@@ -9,6 +13,8 @@ namespace PomoChallengeCounter.Services;
 public class ChallengeService(
     PomoChallengeDbContext context,
     ITimeProvider timeProvider,
+    GatewayClient gatewayClient,
+    IServiceProvider serviceProvider,
     ILogger<ChallengeService> logger) : IChallengeService
 {
     public async Task<ChallengeOperationResult> CreateChallengeAsync(ulong serverId, int semesterNumber, string theme, DateOnly startDate, DateOnly endDate, int weekCount)
@@ -308,5 +314,284 @@ public class ChallengeService(
         context.Weeks.Add(week1);
 
         logger.LogDebug("Created initial weeks 0 and 1 for challenge {ChallengeId}", challenge.Id);
+    }
+
+    public async Task<ChallengeImportResult> ImportChallengeAsync(ulong serverId, ulong channelId, int semesterNumber, string theme)
+    {
+        var result = new ChallengeImportResult();
+
+        try
+        {
+            logger.LogInformation("Starting challenge import for server {ServerId}, channel {ChannelId}, semester {Semester}, theme {Theme}", 
+                serverId, channelId, semesterNumber, theme);
+
+            // 1. Scan Discord channel for threads matching Q[semester]-week[N] pattern
+            var threadScanResult = await ScanChannelForChallengeThreadsAsync(channelId, semesterNumber);
+            
+            if (!threadScanResult.Any())
+            {
+                result.ErrorMessage = $"No threads found matching pattern Q{semesterNumber}-week[N] in the specified channel";
+                return result;
+            }
+
+            result.ThreadsFound = threadScanResult.Select(t => t.Name).ToList();
+            result.ThreadsProcessed = threadScanResult.Count;
+
+            // 2. Determine challenge date range from threads
+            var dateRange = CalculateDateRangeFromThreads(threadScanResult);
+            
+            if (dateRange.startDate == null || dateRange.endDate == null)
+            {
+                result.ErrorMessage = "Unable to determine valid date range from found threads";
+                return result;
+            }
+
+            var weekCount = threadScanResult.Max(t => t.WeekNumber);
+
+            // 3. Validate challenge parameters
+            var validation = ValidateChallengeParameters(semesterNumber, theme, dateRange.startDate.Value, dateRange.endDate.Value, weekCount);
+            if (!validation.IsValid)
+            {
+                result.ErrorMessage = $"Challenge validation failed: {string.Join(", ", validation.Errors)}";
+                return result;
+            }
+
+            // 4. Create challenge record
+            var challenge = new Challenge
+            {
+                ServerId = serverId,
+                SemesterNumber = semesterNumber,
+                Theme = theme,
+                StartDate = dateRange.startDate.Value,
+                EndDate = dateRange.endDate.Value,
+                WeekCount = weekCount,
+                IsCurrent = true,
+                IsStarted = false,  // Imported challenges start as inactive
+                IsActive = false   // Admin needs to explicitly start them
+            };
+
+            context.Challenges.Add(challenge);
+            await context.SaveChangesAsync();
+
+            logger.LogInformation("Created challenge {ChallengeId} from import", challenge.Id);
+
+            // 5. Create week records for all found threads
+            await CreateWeekRecordsFromThreadsAsync(challenge.Id, threadScanResult);
+
+                        // 6. Process historical messages from all threads
+            var messageProcessor = serviceProvider.GetRequiredService<MessageProcessorService>();
+            var totalMessagesProcessed = 0;
+            var usersFound = new HashSet<ulong>();
+
+            foreach (var threadInfo in threadScanResult)
+            {
+                try
+                {
+                    logger.LogInformation("Processing historical messages from thread {ThreadName} ({ThreadId})", 
+                        threadInfo.Name, threadInfo.ThreadId);
+
+                    var messagesProcessed = await ProcessHistoricalMessagesFromThreadAsync(
+                        messageProcessor, threadInfo.ThreadId, challenge.Id, threadInfo.WeekNumber);
+                     
+                    totalMessagesProcessed += messagesProcessed.messagesProcessed;
+                    foreach (var userId in messagesProcessed.usersFound)
+                    {
+                        usersFound.Add(userId);
+                    }
+
+                    logger.LogInformation("Processed {MessageCount} messages from thread {ThreadName}", 
+                        messagesProcessed.messagesProcessed, threadInfo.Name);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to process messages from thread {ThreadName}: {Error}", 
+                        threadInfo.Name, ex.Message);
+                    result.Warnings.Add($"Failed to process thread {threadInfo.Name}: {ex.Message}");
+                }
+            }
+
+            result.Challenge = challenge;
+            result.MessagesProcessed = totalMessagesProcessed;
+            result.UsersFound = usersFound.Count;
+            result.IsSuccess = true;
+
+            logger.LogInformation("Challenge import completed successfully. Challenge: {ChallengeId}, Threads: {ThreadCount}, Messages: {MessageCount}, Users: {UserCount}", 
+                challenge.Id, result.ThreadsProcessed, result.MessagesProcessed, result.UsersFound);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Challenge import failed for server {ServerId}, channel {ChannelId}", serverId, channelId);
+            result.ErrorMessage = $"Import failed: {ex.Message}";
+            return result;
+        }
+    }
+
+    private async Task<List<ThreadInfo>> ScanChannelForChallengeThreadsAsync(ulong channelId, int semesterNumber)
+    {
+        var threads = new List<ThreadInfo>();
+
+        try
+        {
+            if (gatewayClient?.Rest == null)
+            {
+                logger.LogWarning("Discord Gateway client not available for thread scanning");
+                return threads;
+            }
+
+            logger.LogInformation("Scanning channel {ChannelId} for Q{Semester}-week[N] threads", channelId, semesterNumber);
+
+            // Get the channel
+            var channel = await gatewayClient.Rest.GetChannelAsync(channelId);
+            if (channel == null)
+            {
+                logger.LogWarning("Channel {ChannelId} not found or not accessible", channelId);
+                return threads;
+            }
+
+            // Check if it's a text channel that can have threads
+            if (channel is TextGuildChannel textChannel)
+            {
+                try
+                {
+                    logger.LogDebug("Scanning threads from text channel {ChannelId}", channelId);
+                    
+                    // TODO: Implement proper NetCord thread API calls
+                    // The exact NetCord API for getting thread lists needs to be determined
+                    // For now, this is a functional placeholder that logs appropriately
+                    
+                    logger.LogInformation("NetCord thread API integration pending - specific thread list methods need to be identified");
+                    logger.LogDebug("Would scan for active threads, archived public threads, and archived private threads");
+                    
+                    // This placeholder can be replaced once the correct NetCord thread API is identified
+                    // Expected functionality:
+                    // 1. Get active threads from channel
+                    // 2. Get archived public threads with pagination  
+                    // 3. Get archived private threads (with permission handling)
+                    // 4. Parse thread names for Q{semester}-week{N} pattern
+                    // 5. Extract week numbers and creation timestamps
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to retrieve threads from channel {ChannelId}", channelId);
+                }
+            }
+            else
+            {
+                logger.LogWarning("Channel {ChannelId} is not a text channel, cannot scan for threads", channelId);
+            }
+
+            // Sort threads by week number for consistent processing
+            threads.Sort((a, b) => a.WeekNumber.CompareTo(b.WeekNumber));
+
+            logger.LogInformation("Found {ThreadCount} challenge threads in channel {ChannelId} for semester {Semester}", 
+                threads.Count, channelId, semesterNumber);
+
+            return threads;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error scanning channel {ChannelId} for threads", channelId);
+            return threads;
+        }
+    }
+
+    // TODO: Implement GetArchivedThreadsAsync when NetCord thread API is available
+    // This method would handle pagination through archived threads (public/private)
+    // and parse thread names for Q{semester}-week{N} patterns
+
+    // Helper method to parse thread names and extract week numbers
+    private static (bool isMatch, int weekNumber) ParseThreadName(string threadName, int semesterNumber)
+    {
+        if (string.IsNullOrWhiteSpace(threadName))
+            return (false, 0);
+
+        // Pattern: Q{semester}-week{number} with optional suffix
+        // Examples: Q3-week1, Q5-Week0-Inzet, Q3-WEEK12, q5-week1
+        // Case insensitive matching
+        
+        var expectedPrefix = $"Q{semesterNumber}-week";
+        
+        if (threadName.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var afterPrefix = threadName.Substring(expectedPrefix.Length);
+            
+            // Extract just the number part (before any additional dashes/suffixes)
+            var weekPart = afterPrefix.Split('-')[0];
+            
+            if (int.TryParse(weekPart, out var weekNumber) && weekNumber >= 0)
+            {
+                return (true, weekNumber);
+            }
+        }
+
+        return (false, 0);
+    }
+
+    // Helper method to validate thread names match expected pattern
+    private static bool IsValidChallengeThread(string threadName, int semesterNumber)
+    {
+        var (isMatch, weekNumber) = ParseThreadName(threadName, semesterNumber);
+        return isMatch && weekNumber >= 0; // Week 0 is valid for goal setting
+    }
+
+    // Helper method to extract week number from thread name
+    private static int GetWeekNumberFromThreadName(string threadName, int semesterNumber)
+    {
+        var (isMatch, weekNumber) = ParseThreadName(threadName, semesterNumber);
+        return isMatch ? weekNumber : -1;
+    }
+
+    private (DateOnly? startDate, DateOnly? endDate) CalculateDateRangeFromThreads(List<ThreadInfo> threads)
+    {
+        // TODO: Implement date calculation based on thread patterns and Discord timestamps
+        // For now, return a placeholder range
+        logger.LogWarning("CalculateDateRangeFromThreads not yet implemented");
+        return (DateOnly.FromDateTime(DateTime.Today), DateOnly.FromDateTime(DateTime.Today.AddDays(70)));
+    }
+
+    private async Task CreateWeekRecordsFromThreadsAsync(int challengeId, List<ThreadInfo> threads)
+    {
+        foreach (var thread in threads)
+        {
+            var week = new Week
+            {
+                ChallengeId = challengeId,
+                WeekNumber = thread.WeekNumber,
+                ThreadId = thread.ThreadId,
+                LeaderboardPosted = false
+            };
+            context.Weeks.Add(week);
+        }
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Created {WeekCount} week records for challenge {ChallengeId}", threads.Count, challengeId);
+    }
+
+    private async Task<(int messagesProcessed, List<ulong> usersFound)> ProcessHistoricalMessagesFromThreadAsync(
+        MessageProcessorService messageProcessor, ulong threadId, int challengeId, int weekNumber)
+    {
+        try
+        {
+            var result = await messageProcessor.ProcessHistoricalMessagesAsync(threadId, challengeId, weekNumber);
+            logger.LogInformation("Processed {MessageCount} historical messages from thread {ThreadId} for week {WeekNumber}", 
+                result.messagesProcessed, threadId, weekNumber);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to process historical messages from thread {ThreadId}", threadId);
+            return (0, new List<ulong>());
+        }
+    }
+
+    // Helper class for thread information during import
+    private class ThreadInfo
+    {
+        public string Name { get; set; } = "";
+        public ulong ThreadId { get; set; }
+        public int WeekNumber { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 } 

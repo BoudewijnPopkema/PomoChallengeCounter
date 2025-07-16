@@ -29,7 +29,9 @@ public class ChallengeServiceTests : IDisposable
         mockTimeProvider.SetDate(new DateOnly(2024, 3, 11)); // Monday
         var mockLogger = new Mock<ILogger<ChallengeService>>();
         
-        _challengeService = new ChallengeService(_context, mockTimeProvider, mockLogger.Object);
+        var mockServiceProvider = new Mock<IServiceProvider>();
+        
+        _challengeService = new ChallengeService(_context, mockTimeProvider, null, mockServiceProvider.Object, mockLogger.Object);
 
         // Setup test data
         SetupTestData();
@@ -588,5 +590,66 @@ public class ChallengeServiceTests : IDisposable
         // Assert
         result.IsValid.ShouldBeFalse();
         result.Errors.ShouldContain(e => e.Contains("Challenge must be at least 1 week long"));
+    }
+
+    [Fact]
+    public async Task CreateChallenge_WithInvalidTheme_ShouldFail()
+    {
+        // Test with null theme to trigger validation
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, null!, new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9), 12);
+
+        result.IsSuccess.ShouldBeFalse();
+        result.ErrorMessage.ShouldContain("Theme is required");
+    }
+
+    [Theory]
+    [InlineData("Q3-week1", 3, true, 1)]
+    [InlineData("Q3-week0", 3, true, 0)]
+    [InlineData("Q3-week12", 3, true, 12)]
+    [InlineData("Q5-week1", 5, true, 1)]
+    [InlineData("Q3-week1", 2, false, 0)] // Wrong semester
+    [InlineData("Q2-week5", 3, false, 0)] // Wrong semester
+    [InlineData("q3-week1", 3, true, 1)] // Case insensitive (lowercase q works)
+    [InlineData("Q3-Week1", 3, true, 1)] // Case insensitive (capital Week)
+    [InlineData("Q5-WEEK0", 5, true, 0)] // Case insensitive (all caps)
+    [InlineData("Q5-Week0-Inzet", 5, true, 0)] // With suffix
+    [InlineData("Q5-week1-Challenge", 5, true, 1)] // With suffix
+    [InlineData("Q3-WEEK12-Final", 3, true, 12)] // With suffix (caps)
+    [InlineData("Q3-week", 3, false, 0)] // Missing week number
+    [InlineData("Q3-Week", 3, false, 0)] // Missing week number (capital)
+    [InlineData("Q3-week-1", 3, false, 0)] // Invalid format
+    [InlineData("week1", 3, false, 0)] // Missing semester
+    [InlineData("random-thread", 3, false, 0)] // Random name
+    [InlineData("", 3, false, 0)] // Empty string
+    public void ParseThreadName_WithVariousInputs_ShouldParseCorrectly(string threadName, int semester, bool expectedMatch, int expectedWeek)
+    {
+        // Use reflection to access private method for testing
+        var method = typeof(ChallengeService).GetMethod("ParseThreadName", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        
+        var result = method!.Invoke(null, new object[] { threadName, semester });
+        var tuple = ((bool isMatch, int weekNumber))result!;
+
+        tuple.isMatch.ShouldBe(expectedMatch);
+        tuple.weekNumber.ShouldBe(expectedWeek);
+    }
+
+    [Theory]
+    [InlineData("Q3-week1", 3, true)]
+    [InlineData("Q3-week0", 3, true)] // Week 0 is valid for goals
+    [InlineData("Q5-Week1", 5, true)] // Case insensitive
+    [InlineData("q5-WEEK0-Inzet", 5, true)] // Case insensitive with suffix
+    [InlineData("Q3-week12-Final", 3, true)] // With suffix
+    [InlineData("Q3-week-1", 3, false)] // Negative week invalid
+    [InlineData("random", 3, false)]
+    public void IsValidChallengeThread_WithVariousInputs_ShouldValidateCorrectly(string threadName, int semester, bool expected)
+    {
+        // Use reflection to access private method for testing
+        var method = typeof(ChallengeService).GetMethod("IsValidChallengeThread", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        
+        var result = (bool)method!.Invoke(null, new object[] { threadName, semester })!;
+
+        result.ShouldBe(expected);
     }
 } 

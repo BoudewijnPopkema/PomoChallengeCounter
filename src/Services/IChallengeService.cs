@@ -47,4 +47,9 @@ public interface IChallengeService
     /// Validate challenge parameters before creation
     /// </summary>
     ChallengeValidationResult ValidateChallengeParameters(int semesterNumber, string theme, DateOnly startDate, DateOnly endDate, int weekCount);
+    
+    /// <summary>
+    /// Import an existing challenge from a Discord channel by scanning for threads and processing historical messages
+    /// </summary>
+    Task<ChallengeImportResult> ImportChallengeAsync(ulong serverId, ulong channelId, int semesterNumber, string theme);
 } 
