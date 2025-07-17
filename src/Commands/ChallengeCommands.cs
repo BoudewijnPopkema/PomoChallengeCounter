@@ -2,10 +2,8 @@ using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using Microsoft.EntityFrameworkCore;
-using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Services;
 using PomoChallengeCounter.Models;
-using System.Globalization;
 
 namespace PomoChallengeCounter.Commands;
 

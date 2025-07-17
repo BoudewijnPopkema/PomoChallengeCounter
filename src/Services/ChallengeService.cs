@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NetCord;
 using NetCord.Gateway;
-using NetCord.Rest;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
 using PomoChallengeCounter.Models.Results;
@@ -434,21 +433,10 @@ public class ChallengeService(
 
         try
         {
-            if (gatewayClient?.Rest == null)
-            {
-                logger.LogWarning("Discord Gateway client not available for thread scanning");
-                return threads;
-            }
-
             logger.LogInformation("Scanning channel {ChannelId} for Q{Semester}-week[N] threads", channelId, semesterNumber);
 
             // Get the channel
             var channel = await gatewayClient.Rest.GetChannelAsync(channelId);
-            if (channel == null)
-            {
-                logger.LogWarning("Channel {ChannelId} not found or not accessible", channelId);
-                return threads;
-            }
 
             // Check if it's a text channel that can have threads
             if (channel is TextGuildChannel textChannel)
@@ -457,20 +445,47 @@ public class ChallengeService(
                 {
                     logger.LogDebug("Scanning threads from text channel {ChannelId}", channelId);
                     
-                    // TODO: Implement proper NetCord thread API calls
-                    // The exact NetCord API for getting thread lists needs to be determined
-                    // For now, this is a functional placeholder that logs appropriately
+                    // Get the guild to enumerate all channels/threads
+                    var guild = await gatewayClient.Rest.GetGuildAsync(textChannel.GuildId);
+                    var allChannels = await guild.GetChannelsAsync();
                     
-                    logger.LogInformation("NetCord thread API integration pending - specific thread list methods need to be identified");
-                    logger.LogDebug("Would scan for active threads, archived public threads, and archived private threads");
+                    // Filter for GuildThread channels that belong to our target channel
+                    var guildThreads = allChannels
+                        .OfType<GuildThread>()
+                        .Where(t => t.ParentId == channelId)
+                        .ToList();
                     
-                    // This placeholder can be replaced once the correct NetCord thread API is identified
-                    // Expected functionality:
-                    // 1. Get active threads from channel
-                    // 2. Get archived public threads with pagination  
-                    // 3. Get archived private threads (with permission handling)
-                    // 4. Parse thread names for Q{semester}-week{N} pattern
-                    // 5. Extract week numbers and creation timestamps
+                    logger.LogDebug("Found {ThreadCount} threads in channel {ChannelId}", guildThreads.Count, channelId);
+                    
+                    // Process each thread and check if it matches the challenge pattern
+                    foreach (var thread in guildThreads)
+                    {
+                        var (isMatch, weekNumber) = ParseThreadName(thread.Name, semesterNumber);
+                        
+                        if (isMatch)
+                        {
+                            var threadInfo = new ThreadInfo
+                            {
+                                Name = thread.Name,
+                                ThreadId = thread.Id,
+                                WeekNumber = weekNumber,
+                                CreatedAt = thread.CreatedAt.DateTime
+                            };
+                            
+                            threads.Add(threadInfo);
+                            
+                            logger.LogDebug("Found matching thread: {ThreadName} (ID: {ThreadId}) for week {WeekNumber}", 
+                                thread.Name, thread.Id, weekNumber);
+                        }
+                        else
+                        {
+                            logger.LogDebug("Thread {ThreadName} does not match Q{Semester}-week[N] pattern", 
+                                thread.Name, semesterNumber);
+                        }
+                    }
+                    
+                    logger.LogInformation("Successfully scanned channel {ChannelId}, found {MatchingThreads} matching threads out of {TotalThreads} total threads", 
+                        channelId, threads.Count, guildThreads.Count);
                 }
                 catch (Exception ex)
                 {
@@ -497,9 +512,9 @@ public class ChallengeService(
         }
     }
 
-    // TODO: Implement GetArchivedThreadsAsync when NetCord thread API is available
-    // This method would handle pagination through archived threads (public/private)
-    // and parse thread names for Q{semester}-week{N} patterns
+    // NOTE: NetCord thread scanning implementation complete
+    // The GetChannelsAsync() method returns both active and archived threads as GuildThread objects
+    // Additional pagination support could be added if needed for large numbers of threads
 
     // Helper method to parse thread names and extract week numbers
     private static (bool isMatch, int weekNumber) ParseThreadName(string threadName, int semesterNumber)
@@ -508,8 +523,8 @@ public class ChallengeService(
             return (false, 0);
 
         // Pattern: Q{semester}-week{number} with optional suffix
-        // Examples: Q3-week1, Q5-Week0-Inzet, Q3-WEEK12, q5-week1
-        // Case insensitive matching
+        // Examples: Q3-week1, Q1-week0-inzet, q1-week1-inzet, Q5-Week0-Inzet, Q3-WEEK12, q5-week1
+        // Case insensitive matching - supports goal threads like "q1-week0-inzet" or "q1-week1-inzet"
         
         var expectedPrefix = $"Q{semesterNumber}-week";
         
@@ -545,10 +560,65 @@ public class ChallengeService(
 
     private (DateOnly? startDate, DateOnly? endDate) CalculateDateRangeFromThreads(List<ThreadInfo> threads)
     {
-        // TODO: Implement date calculation based on thread patterns and Discord timestamps
-        // For now, return a placeholder range
-        logger.LogWarning("CalculateDateRangeFromThreads not yet implemented");
-        return (DateOnly.FromDateTime(DateTime.Today), DateOnly.FromDateTime(DateTime.Today.AddDays(70)));
+        if (!threads.Any())
+        {
+            logger.LogWarning("No threads provided for date calculation");
+            return (null, null);
+        }
+
+        try
+        {
+            // Sort threads by week number to find the chronological order
+            var sortedThreads = threads.OrderBy(t => t.WeekNumber).ToList();
+            
+            // Find week 0 or 1 as the start reference
+            var startWeekThread = sortedThreads.FirstOrDefault(t => t.WeekNumber == 0) ?? 
+                                  sortedThreads.FirstOrDefault(t => t.WeekNumber == 1);
+            
+            if (startWeekThread == null)
+            {
+                logger.LogWarning("Could not find week 0 or 1 thread for start date calculation");
+                return (null, null);
+            }
+
+            // Calculate start date based on the earliest thread
+            // Week 0 starts the Sunday before the thread was created
+            // Week 1 starts on the Monday the week of thread creation
+            DateOnly calculatedStartDate;
+            
+            if (startWeekThread.WeekNumber == 0)
+            {
+                // Week 0 (goal setting) - start on the Sunday before thread creation
+                var threadDate = DateOnly.FromDateTime(startWeekThread.CreatedAt);
+                var daysSinceSunday = ((int)startWeekThread.CreatedAt.DayOfWeek) % 7;
+                calculatedStartDate = threadDate.AddDays(-daysSinceSunday);
+            }
+            else
+            {
+                // Week 1 - start on the Monday of the week the thread was created
+                var threadDate = DateOnly.FromDateTime(startWeekThread.CreatedAt);
+                var daysSinceMonday = (int)startWeekThread.CreatedAt.DayOfWeek - 1;
+                if (daysSinceMonday < 0) daysSinceMonday = 6; // Sunday wraps to 6
+                calculatedStartDate = threadDate.AddDays(-daysSinceMonday);
+            }
+
+            // Calculate end date based on the highest week number
+            var maxWeekNumber = sortedThreads.Max(t => t.WeekNumber);
+            var durationWeeks = maxWeekNumber > 0 ? maxWeekNumber : 1; // At least 1 week
+            
+            // End date is the Sunday after the last week completes
+            var calculatedEndDate = calculatedStartDate.AddDays((durationWeeks * 7) - 1);
+
+            logger.LogInformation("Calculated challenge dates from {ThreadCount} threads: Start {StartDate}, End {EndDate} (Week 0-{MaxWeek})", 
+                threads.Count, calculatedStartDate, calculatedEndDate, maxWeekNumber);
+
+            return (calculatedStartDate, calculatedEndDate);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to calculate date range from threads");
+            return (null, null);
+        }
     }
 
     private async Task CreateWeekRecordsFromThreadsAsync(int challengeId, List<ThreadInfo> threads)

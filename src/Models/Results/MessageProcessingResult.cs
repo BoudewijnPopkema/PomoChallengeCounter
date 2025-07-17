@@ -1,5 +1,3 @@
-using PomoChallengeCounter.Models;
-
 namespace PomoChallengeCounter.Models.Results;
 
 public class MessageProcessingResult

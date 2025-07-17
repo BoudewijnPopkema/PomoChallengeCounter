@@ -5,7 +5,6 @@ using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
 using PomoChallengeCounter.Services;
 using Shouldly;
-using Xunit;
 
 namespace PomoChallengeCounter.Tests;
 
@@ -604,52 +603,73 @@ public class ChallengeServiceTests : IDisposable
 
     [Theory]
     [InlineData("Q3-week1", 3, true, 1)]
-    [InlineData("Q3-week0", 3, true, 0)]
-    [InlineData("Q3-week12", 3, true, 12)]
-    [InlineData("Q5-week1", 5, true, 1)]
+    [InlineData("Q5-Week0-Inzet", 5, true, 0)]
+    [InlineData("Q1-week0-inzet", 1, true, 0)]  // Specific pattern user mentioned
+    [InlineData("q1-week1-inzet", 1, true, 1)]  // Lowercase + week1 with inzet suffix
+    [InlineData("q1-week0-inzet", 1, true, 0)]  // Lowercase + week0 with inzet suffix
+    [InlineData("Q3-WEEK12", 3, true, 12)]
+    [InlineData("q5-week1", 5, true, 1)]
+    [InlineData("Q2-week5-Extra-Info", 2, true, 5)]
     [InlineData("Q3-week1", 2, false, 0)] // Wrong semester
-    [InlineData("Q2-week5", 3, false, 0)] // Wrong semester
-    [InlineData("q3-week1", 3, true, 1)] // Case insensitive (lowercase q works)
-    [InlineData("Q3-Week1", 3, true, 1)] // Case insensitive (capital Week)
-    [InlineData("Q5-WEEK0", 5, true, 0)] // Case insensitive (all caps)
-    [InlineData("Q5-Week0-Inzet", 5, true, 0)] // With suffix
-    [InlineData("Q5-week1-Challenge", 5, true, 1)] // With suffix
-    [InlineData("Q3-WEEK12-Final", 3, true, 12)] // With suffix (caps)
-    [InlineData("Q3-week", 3, false, 0)] // Missing week number
-    [InlineData("Q3-Week", 3, false, 0)] // Missing week number (capital)
-    [InlineData("Q3-week-1", 3, false, 0)] // Invalid format
-    [InlineData("week1", 3, false, 0)] // Missing semester
-    [InlineData("random-thread", 3, false, 0)] // Random name
+    [InlineData("Random-Thread", 3, false, 0)] // Wrong pattern
+    [InlineData("Q3-week", 3, false, 0)] // Missing number
+    [InlineData("Q3-weekX", 3, false, 0)] // Invalid number
     [InlineData("", 3, false, 0)] // Empty string
-    public void ParseThreadName_WithVariousInputs_ShouldParseCorrectly(string threadName, int semester, bool expectedMatch, int expectedWeek)
+    [InlineData("Q3-week-1", 3, false, 0)] // Extra dash before number
+    public void ParseThreadName_ShouldParseCorrectly(string threadName, int semesterNumber, bool expectedMatch, int expectedWeekNumber)
     {
-        // Use reflection to access private method for testing
+        // Arrange & Act - using reflection to access private method
         var method = typeof(ChallengeService).GetMethod("ParseThreadName", 
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var result = method?.Invoke(null, new object[] { threadName, semesterNumber });
         
-        var result = method!.Invoke(null, new object[] { threadName, semester });
-        var tuple = ((bool isMatch, int weekNumber))result!;
-
-        tuple.isMatch.ShouldBe(expectedMatch);
-        tuple.weekNumber.ShouldBe(expectedWeek);
+        // Assert
+        result.ShouldNotBeNull();
+        var (isMatch, weekNumber) = ((bool, int))result;
+        isMatch.ShouldBe(expectedMatch);
+        weekNumber.ShouldBe(expectedWeekNumber);
     }
 
     [Theory]
     [InlineData("Q3-week1", 3, true)]
-    [InlineData("Q3-week0", 3, true)] // Week 0 is valid for goals
-    [InlineData("Q5-Week1", 5, true)] // Case insensitive
-    [InlineData("q5-WEEK0-Inzet", 5, true)] // Case insensitive with suffix
-    [InlineData("Q3-week12-Final", 3, true)] // With suffix
-    [InlineData("Q3-week-1", 3, false)] // Negative week invalid
-    [InlineData("random", 3, false)]
-    public void IsValidChallengeThread_WithVariousInputs_ShouldValidateCorrectly(string threadName, int semester, bool expected)
+    [InlineData("Q5-Week0-Inzet", 5, true)]
+    [InlineData("Q1-week0-inzet", 1, true)]  // Specific pattern user mentioned
+    [InlineData("q1-week1-inzet", 1, true)]  // Lowercase + week1 with inzet suffix
+    [InlineData("q1-week0-inzet", 1, true)]  // Lowercase + week0 with inzet suffix
+    [InlineData("Q3-WEEK12", 3, true)]
+    [InlineData("q5-week1", 5, true)]
+    [InlineData("Q3-week1", 2, false)] // Wrong semester
+    [InlineData("Random-Thread", 3, false)] // Wrong pattern
+    public void IsValidChallengeThread_ShouldValidateCorrectly(string threadName, int semesterNumber, bool expected)
     {
-        // Use reflection to access private method for testing
+        // Arrange & Act - using reflection to access private method
         var method = typeof(ChallengeService).GetMethod("IsValidChallengeThread", 
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var result = method?.Invoke(null, new object[] { threadName, semesterNumber });
         
-        var result = (bool)method!.Invoke(null, new object[] { threadName, semester })!;
+        // Assert
+        result.ShouldNotBeNull();
+        ((bool)result).ShouldBe(expected);
+    }
 
-        result.ShouldBe(expected);
+    [Theory]
+    [InlineData("Q3-week1", 3, 1)]
+    [InlineData("Q5-Week0-Inzet", 5, 0)]
+    [InlineData("Q1-week0-inzet", 1, 0)]  // Specific pattern user mentioned
+    [InlineData("q1-week1-inzet", 1, 1)]  // Lowercase + week1 with inzet suffix
+    [InlineData("q1-week0-inzet", 1, 0)]  // Lowercase + week0 with inzet suffix
+    [InlineData("Q3-WEEK12", 3, 12)]
+    [InlineData("Q3-week1", 2, -1)] // Wrong semester
+    [InlineData("Random-Thread", 3, -1)] // Wrong pattern
+    public void GetWeekNumberFromThreadName_ShouldExtractCorrectly(string threadName, int semesterNumber, int expected)
+    {
+        // Arrange & Act - using reflection to access private method
+        var method = typeof(ChallengeService).GetMethod("GetWeekNumberFromThreadName", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var result = method?.Invoke(null, new object[] { threadName, semesterNumber });
+        
+        // Assert
+        result.ShouldNotBeNull();
+        ((int)result).ShouldBe(expected);
     }
 } 

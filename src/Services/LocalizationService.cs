@@ -86,7 +86,7 @@ public class LocalizationService(ILogger<LocalizationService> logger)
             case string stringValue:
                 value = stringValue;
                 return true;
-            case JsonElement jsonElement when jsonElement.ValueKind == JsonValueKind.String:
+            case JsonElement { ValueKind: JsonValueKind.String } jsonElement:
                 value = jsonElement.GetString() ?? string.Empty;
                 return true;
             default:

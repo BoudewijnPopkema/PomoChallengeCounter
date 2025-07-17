@@ -3,10 +3,8 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
-using PomoChallengeCounter.Models.Results;
 using PomoChallengeCounter.Services;
 using Shouldly;
-using Xunit;
 
 namespace PomoChallengeCounter.Tests;
 
@@ -32,10 +30,31 @@ public class MessageProcessorServiceTests : IDisposable
         // Setup mocks
         _mockEmojiService = new Mock<IEmojiService>();
         _mockLogger = new Mock<ILogger<MessageProcessorService>>();
+        var mockLocalizationService = new Mock<LocalizationService>(Mock.Of<ILogger<LocalizationService>>());
+        
+        // Setup localization mock to return expected values
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.title", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns("🏆 Challenge Leaderboard");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.error.invalid_week", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns("❌ Leaderboard Error");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.error.week_not_found", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns("❌ Error");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.description", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns("**Test Challenge Theme** - Q1");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.author_name", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns("Challenge Leaderboard");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.field_title", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns("Week 1 Rankings");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.statistics_title", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns("📊 This Week");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.no_data", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns("No activity recorded for this week yet.");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.goal_next_week", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns("Goal: {0} pts");
         
         var mockServiceProvider = new Mock<IServiceProvider>();
         
-        _messageProcessor = new MessageProcessorService(_context, _mockEmojiService.Object, mockServiceProvider.Object, _mockLogger.Object);
+        _messageProcessor = new MessageProcessorService(_context, _mockEmojiService.Object, mockServiceProvider.Object, mockLocalizationService.Object, _mockLogger.Object);
 
         // Setup test data
         SetupTestData();
@@ -43,6 +62,9 @@ public class MessageProcessorServiceTests : IDisposable
 
     private void SetupTestData()
     {
+        // Clear any existing tracked entities to avoid conflicts
+        _context.ChangeTracker.Clear();
+        
         _testServer = new Server
         {
             Id = 123456789,
@@ -624,5 +646,153 @@ public class MessageProcessorServiceTests : IDisposable
         result.IsSuccess.ShouldBeTrue();
         result.MessageLog.ShouldNotBeNull();
         result.MessageLog!.GoalPoints.ShouldBe(10);
+    }
+
+    [Fact]
+    public void GetRandomRewardEmoji_WithEmptyList_ShouldReturnEmpty()
+    {
+        // Arrange - using reflection to access private method
+        var method = typeof(MessageProcessorService).GetMethod("GetRandomRewardEmoji", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        
+        var emptyRewardList = new List<Models.Emoji>();
+        
+        // Act
+        var result = method?.Invoke(null, new object[] { emptyRewardList });
+        
+        // Assert
+        result.ShouldNotBeNull();
+        ((string)result).ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public void GetRandomRewardEmoji_WithRewardEmojis_ShouldReturnValidEmoji()
+    {
+        // Arrange
+        var rewardEmojis = new List<Models.Emoji>
+        {
+            new() { EmojiCode = "🏆" },
+            new() { EmojiCode = "💎" },
+            new() { EmojiCode = "👑" }
+        };
+        
+        var method = typeof(MessageProcessorService).GetMethod("GetRandomRewardEmoji", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        
+        // Act
+        var result = (string)method!.Invoke(null, new object[] { rewardEmojis })!;
+        
+        // Assert - result should be one of the configured reward emojis
+        result.ShouldNotBeNullOrEmpty();
+        new[] { "🏆", "💎", "👑" }.ShouldContain(result);
+    }
+
+    [Theory]
+    [InlineData(25, 150, 20, "Epic productivity this week! 🔥 Keep the momentum going!")]
+    [InlineData(8, 75, 6, "Great effort this week! ⭐ You're making progress!")]
+    [InlineData(3, 25, 1, "Good start! 📈 Every session counts!")]
+    [InlineData(1, 5, 0, "Building momentum! 🌱 Every step forward matters!")]
+    public void GetMotivationalFooter_ShouldGenerateAppropriateMessages(int participants, int weeklyPoints, int goalsAchieved, string expectedPattern)
+    {
+        // Arrange
+        var method = typeof(MessageProcessorService).GetMethod("GetMotivationalFooter", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        
+        // Act
+        var result = method?.Invoke(null, new object[] { participants, weeklyPoints, goalsAchieved });
+        
+        // Assert
+        result.ShouldNotBeNull();
+        var actualMessage = (string)result;
+        actualMessage.ShouldBe(expectedPattern);
+    }
+
+    [Fact]
+    public void GetMotivationalFooter_WithHighAchievementRate_ShouldIncludeFireEmoji()
+    {
+        // Arrange - 80% goal achievement rate (4 out of 5)
+        var method = typeof(MessageProcessorService).GetMethod("GetMotivationalFooter", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        
+        // Act
+        var result = (string)method!.Invoke(null, new object[] { 5, 100, 4 })!;
+        
+        // Assert
+        result.ShouldContain("🔥"); // High achievement rate should include fire emoji
+        result.ShouldContain("Epic"); // 5 participants is not epic, but high points should influence
+    }
+
+    [Fact]
+    public async Task GenerateLeaderboardEmbedAsync_ShouldCreateWellFormattedEmbed()
+    {
+        // Arrange - test data already set up in constructor
+        
+        // Add some message logs for leaderboard data
+        var messageLog1 = new MessageLog
+        {
+            MessageId = 123,
+            UserId = 456,
+            WeekId = 1,
+            PomodoroPoints = 25,
+            BonusPoints = 5,
+            GoalPoints = 10
+        };
+        
+        var messageLog2 = new MessageLog
+        {
+            MessageId = 124,
+            UserId = 457,
+            WeekId = 1,
+            PomodoroPoints = 30,
+            BonusPoints = 0,
+            GoalPoints = 15
+        };
+        
+        await _context.MessageLogs.AddRangeAsync(messageLog1, messageLog2);
+        await _context.SaveChangesAsync();
+        
+        // Act
+        var embed = await _messageProcessor.GenerateLeaderboardEmbedAsync(1);
+        
+        // Assert
+        embed.ShouldNotBeNull();
+        embed.Title.ShouldContain("🏆 Challenge Leaderboard");
+        embed.Title.ShouldContain("Week 1");
+        embed.Description.ShouldContain("Test Challenge");
+        embed.Description.ShouldContain("Semester 3");
+        embed.Color.ShouldBe(new NetCord.Color(0xffd700)); // Gold color
+        embed.Fields.ShouldNotBeEmpty();
+        embed.Footer.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task GenerateLeaderboardEmbedAsync_WithNoData_ShouldReturnNoDataEmbed()
+    {
+        // Arrange - test data already set up in constructor
+        // No message logs added
+        
+        // Act
+        var embed = await _messageProcessor.GenerateLeaderboardEmbedAsync(1);
+        
+        // Assert
+        embed.ShouldNotBeNull();
+        embed.Title.ShouldContain("🏆 Challenge Leaderboard");
+        embed.Description.ShouldContain("No data found for this week");
+        embed.Color.ShouldBe(new NetCord.Color(0xffd700));
+    }
+
+    [Fact]
+    public async Task GenerateLeaderboardEmbedAsync_WithInvalidWeek_ShouldReturnErrorEmbed()
+    {
+        // Arrange - test data already set up in constructor
+        
+        // Act
+        var embed = await _messageProcessor.GenerateLeaderboardEmbedAsync(999); // Non-existent week
+        
+        // Assert
+        embed.ShouldNotBeNull();
+        embed.Title.ShouldContain("❌ Leaderboard Error");
+        embed.Description.ShouldContain("Week not found");
+        embed.Color.ShouldBe(new NetCord.Color(0xff0000)); // Red color for error
     }
 } 

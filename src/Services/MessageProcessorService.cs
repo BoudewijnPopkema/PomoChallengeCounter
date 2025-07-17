@@ -13,6 +13,7 @@ public class MessageProcessorService(
     PomoChallengeDbContext context,
     IEmojiService emojiService,
     IServiceProvider serviceProvider,
+    LocalizationService localizationService,
     ILogger<MessageProcessorService> logger)
 {
     public async Task<MessageProcessingResult> ProcessMessageAsync(ulong messageId, ulong userId, string messageContent, ulong? channelId = null, bool forceReprocess = false)
@@ -393,6 +394,11 @@ public class MessageProcessorService(
                 .Where(ml => ml.WeekId == currentWeekId)
                 .ToList();
 
+            // Get next week's goal (from current week's goal emojis)
+            var nextWeekGoals = weeklyMessages
+                .GroupBy(ml => ml.UserId)
+                .ToDictionary(g => g.Key, g => g.Sum(ml => ml.GoalPoints));
+
             // Group by user and calculate total + weekly stats
             var leaderboardData = allChallengeMessages
                 .GroupBy(ml => ml.UserId)
@@ -408,7 +414,10 @@ public class MessageProcessorService(
                     WeeklyPomodoroPoints = weeklyMessages.Where(ml => ml.UserId == g.Key).Sum(ml => ml.PomodoroPoints),
                     WeeklyBonusPoints = weeklyMessages.Where(ml => ml.UserId == g.Key).Sum(ml => ml.BonusPoints),
                     WeeklyGoalPoints = weeklyMessages.Where(ml => ml.UserId == g.Key).Sum(ml => ml.GoalPoints),
-                    WeeklyMessageCount = weeklyMessages.Count(ml => ml.UserId == g.Key)
+                    WeeklyMessageCount = weeklyMessages.Count(ml => ml.UserId == g.Key),
+                    
+                    // Goal for next week (from current week's goal emojis)
+                    NextWeekGoalPoints = nextWeekGoals.GetValueOrDefault(g.Key, 0)
                 })
                 .OrderByDescending(x => x.TotalPoints)
                 .ToList();
@@ -457,11 +466,6 @@ public class MessageProcessorService(
 
             // Get the channel/thread
             var channel = await gatewayClient.Rest.GetChannelAsync(threadId);
-            if (channel == null)
-            {
-                logger.LogWarning("Thread/channel {ThreadId} not found or not accessible", threadId);
-                return (0, new List<ulong>());
-            }
 
             // Process messages with pagination
             ulong? beforeMessageId = null;
@@ -477,38 +481,61 @@ public class MessageProcessorService(
 
                 try
                 {
-                    // TODO: Use proper NetCord message API once available
-                    // For now, this is a placeholder that demonstrates the structure
-                    logger.LogDebug("NetCord message API integration pending - would fetch messages with pagination");
+                    // Fetch messages using NetCord REST API
+                    var messages = new List<DiscordMessageInfo>();
                     
-                    // Placeholder for actual message fetching:
-                    // var messages = await GetMessagesFromChannelAsync(channel, batchSize, beforeMessageId);
-                    
-                    // Expected process:
-                    // 1. Fetch messages in batches of 100
-                    // 2. Parse each message for emoji content
-                    // 3. Calculate points using existing emoji service
-                    // 4. Create MessageLog entries for eligible messages
-                    // 5. Track users and processed message count
-                    // 6. Handle pagination with beforeMessageId
-                    // 7. Respect Discord rate limits (delay between batches)
-
-                    // For demonstration, simulate processing a small batch
-                    var simulatedBatchSize = Math.Min(5, batchSize); // Small simulation
-                    var batch = await ProcessSimulatedMessageBatch(simulatedBatchSize, week.Id);
-                    messagesProcessed += batch.messagesProcessed;
-                    
-                    foreach (var userId in batch.usersFound)
+                    // Use GetMessagesAsync - start with basic approach then add pagination
+                    if (channel is NetCord.TextChannel textChannel)
                     {
-                        usersFound.Add(userId);
+                        var messageCount = 0;
+                        await foreach (var message in textChannel.GetMessagesAsync())
+                        {
+                            // Skip messages that are newer than our pagination point
+                            if (beforeMessageId.HasValue && message.Id >= beforeMessageId.Value)
+                                continue;
+                            
+                            // Convert NetCord RestMessage to our DiscordMessageInfo format
+                            var messageInfo = new DiscordMessageInfo
+                            {
+                                MessageId = message.Id,
+                                UserId = message.Author.Id,
+                                Content = message.Content ?? string.Empty,
+                                Timestamp = message.CreatedAt.DateTime
+                            };
+                            
+                            messages.Add(messageInfo);
+                            messageCount++;
+                            
+                            // Track the oldest message ID for next pagination
+                            beforeMessageId = message.Id;
+                            
+                            // Break if we've hit our batch size limit
+                            if (messageCount >= batchSize)
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        logger.LogWarning("Channel {ChannelId} is not a TextChannel, cannot fetch messages", threadId);
+                        hasMoreMessages = false;
+                        break;
                     }
 
-                    totalFetched += simulatedBatchSize;
+                    // Process the fetched batch
+                    var batchProcessed = await ProcessMessageBatchAsync(messages, week.Id);
+                    messagesProcessed += batchProcessed;
                     
-                    // Simulate pagination ending after a few batches
-                    hasMoreMessages = batchCount < 3; // Limit for demonstration
+                    foreach (var message in messages)
+                    {
+                        usersFound.Add(message.UserId);
+                    }
+
+                    totalFetched += messages.Count;
                     
-                    logger.LogDebug("Processed {MessageCount} messages in batch {BatchNumber}", batch.messagesProcessed, batchCount);
+                    // Check if we got fewer messages than requested (end of channel)
+                    hasMoreMessages = messages.Count >= batchSize;
+                    
+                    logger.LogDebug("Processed {MessageCount} messages in batch {BatchNumber}", batchProcessed, batchCount);
                     
                     // Rate limiting delay
                     await Task.Delay(250); // Respect Discord rate limits
@@ -654,10 +681,11 @@ public class MessageProcessorService(
     /// </summary>
     public async Task<EmbedProperties> GenerateLeaderboardEmbedAsync(int weekId)
     {
+        Week? week = null;
         try
         {
             // Get week and challenge information
-            var week = await context.Weeks
+            week = await context.Weeks
                 .Include(w => w.Challenge)
                 .FirstOrDefaultAsync(w => w.Id == weekId);
 
@@ -670,6 +698,7 @@ public class MessageProcessorService(
             }
 
             var challenge = week.Challenge;
+            var serverLanguage = challenge.Server.Language;
 
             // Calculate leaderboard data
             var leaderboardData = await CalculateChallengeLeaderboardWithWeeklyProgressAsync(challenge.Id, week.Id);
@@ -677,18 +706,21 @@ public class MessageProcessorService(
             if (!leaderboardData.Any())
             {
                 return new EmbedProperties()
-                    .WithTitle($"🏆 Challenge Leaderboard - Week {week.WeekNumber}")
-                    .WithDescription($"**{challenge.Theme}** - Semester {challenge.SemesterNumber}\n\nNo data found for this week.")
+                    .WithTitle(localizationService.GetString("leaderboard.title", serverLanguage, week.WeekNumber))
+                    .WithDescription($"**{challenge.Theme}** - Semester {challenge.SemesterNumber}\n\n{localizationService.GetString("leaderboard.no_data", serverLanguage)}")
                     .WithColor(new Color(0xffd700))
                     .WithTimestamp(DateTimeOffset.UtcNow);
             }
 
-            // Create the embed
+            // Create the embed with enhanced NetCord features and localization
             var embed = new EmbedProperties()
-                .WithTitle($"🏆 Challenge Leaderboard - Week {week.WeekNumber}")
+                .WithTitle(localizationService.GetString("leaderboard.title", serverLanguage, week.WeekNumber))
                 .WithColor(new Color(0xffd700)) // Gold color
-                .WithDescription($"**{challenge.Theme}** - Semester {challenge.SemesterNumber}\nRanked by total challenge score with this week's progress")
-                .WithTimestamp(DateTimeOffset.UtcNow);
+                .WithDescription(localizationService.GetString("leaderboard.description", serverLanguage, challenge.Theme, challenge.SemesterNumber))
+                .WithTimestamp(DateTimeOffset.UtcNow)
+                .WithAuthor(new EmbedAuthorProperties()
+                    .WithName(localizationService.GetString("leaderboard.author_name", serverLanguage, challenge.SemesterNumber))); 
+                    // Note: Icon URLs omitted - would need actual URLs to valid Discord CDN images
 
             // Get available reward emojis for this challenge/server
             var rewardEmojis = await context.Emojis
@@ -704,11 +736,17 @@ public class MessageProcessorService(
             {
                 var entry = leaderboardData[i];
                 var rank = i + 1;
-                var rankEmoji = GetRankEmoji(rank, rewardEmojis);
                 
-                // Format user mention and total challenge stats
+                // Format user mention with reward emoji prefix if they achieved their goal
                 var userName = $"<@{entry.UserId}>";
-                var totalStats = $"{entry.TotalPoints} pts total";
+                if (entry.WeeklyGoalAchieved)
+                {
+                    var rewardEmoji = GetRandomRewardEmoji(rewardEmojis);
+                    if (!string.IsNullOrEmpty(rewardEmoji))
+                        userName = $"{rewardEmoji} {userName}";
+                }
+                
+                var totalStats = $"{entry.TotalPoints} {localizationService.GetString("leaderboard.points_total", serverLanguage)}";
                 
                 if (entry.TotalPomodoroPoints > 0 || entry.TotalBonusPoints > 0)
                 {
@@ -722,7 +760,7 @@ public class MessageProcessorService(
                 var weeklyProgress = "";
                 if (entry.WeeklyPoints > 0)
                 {
-                    weeklyProgress = $" | +{entry.WeeklyPoints} this week";
+                    weeklyProgress = $" | +{entry.WeeklyPoints} {localizationService.GetString("leaderboard.this_week", serverLanguage)}";
                     if (entry.WeeklyPomodoroPoints > 0 || entry.WeeklyBonusPoints > 0)
                     {
                         weeklyProgress += $" ({entry.WeeklyPomodoroPoints}🍅";
@@ -732,24 +770,18 @@ public class MessageProcessorService(
                     }
                 }
                 
-                // Goal achievement indicator using reward emojis
-                var goalStatus = "";
-                if (entry.TotalGoalAchieved && rewardEmojis.Any())
+                // Next week goal display
+                var nextWeekGoal = "";
+                if (entry.NextWeekGoalPoints > 0)
                 {
-                    // Use first reward emoji for goal achievement
-                    var goalRewardEmoji = rewardEmojis.First().EmojiCode;
-                    goalStatus = $" {goalRewardEmoji}";
-                }
-                else if (entry.TotalGoalPoints > 0 && !entry.TotalGoalAchieved)
-                {
-                    goalStatus = $" 🎯{entry.TotalGoalPoints}";
+                    nextWeekGoal = $" - {localizationService.GetString("leaderboard.goal_next_week", serverLanguage, entry.NextWeekGoalPoints)}";
                 }
                 
-                leaderboardText += $"{rankEmoji} **{rank}.** {userName} - {totalStats}{weeklyProgress}{goalStatus}\n";
+                leaderboardText += $"**{rank}.** {userName} - {totalStats}{weeklyProgress}{nextWeekGoal}\n";
             }
             
             embed.AddFields(new EmbedFieldProperties()
-                .WithName("🏆 Challenge Leaderboard")
+                .WithName(localizationService.GetString("leaderboard.field_title", serverLanguage))
                 .WithValue(leaderboardText.Trim())
                 .WithInline(false));
 
@@ -761,38 +793,92 @@ public class MessageProcessorService(
             var weeklyMessages = leaderboardData.Sum(x => x.WeeklyMessageCount);
             var weeklyPoints = leaderboardData.Sum(x => x.WeeklyPoints);
             
-            var summaryText = $"**{totalParticipants}** participants\n" +
-                             $"**{totalPoints}** total points | **{weeklyPoints}** this week\n" +
-                             $"**{totalMessages}** total messages | **{weeklyMessages}** this week\n" +
-                             $"**{goalsAchieved}** goals achieved 🎯";
+            var summaryText = $"**{totalParticipants}** {localizationService.GetString("leaderboard.participants", serverLanguage)}\n" +
+                             $"**{totalPoints}** {localizationService.GetString("leaderboard.total_points", serverLanguage)} | **{weeklyPoints}** {localizationService.GetString("leaderboard.this_week", serverLanguage)}\n" +
+                             $"**{totalMessages}** {localizationService.GetString("leaderboard.total_messages", serverLanguage)} | **{weeklyMessages}** {localizationService.GetString("leaderboard.this_week", serverLanguage)}\n" +
+                             $"**{goalsAchieved}** {localizationService.GetString("leaderboard.goals_achieved", serverLanguage)} 🎯";
 
             embed.AddFields(new EmbedFieldProperties()
-                .WithName("📊 Challenge Statistics")
+                .WithName(localizationService.GetString("leaderboard.statistics_title", serverLanguage))
                 .WithValue(summaryText)
                 .WithInline(false));
+
+            // Add motivational footer with dynamic content
+            var footerText = GetMotivationalFooter(totalParticipants, weeklyPoints, goalsAchieved);
+            var footerIcon = GetFooterIcon(totalParticipants);
+            
+            embed.WithFooter(new EmbedFooterProperties()
+                .WithText(footerText)
+                .WithIconUrl(footerIcon));
 
             return embed;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to generate leaderboard embed for week {WeekId}", weekId);
+            // Fallback to English for error messages if server language is not available
+            var language = week?.Challenge?.Server?.Language ?? "en";
             return new EmbedProperties()
-                .WithTitle("❌ Error")
-                .WithDescription("Failed to generate leaderboard")
-                .WithColor(new Color(0xff0000));
+                .WithTitle(localizationService.GetString("leaderboard.error_title", language))
+                .WithDescription(localizationService.GetString("leaderboard.error_description", language, weekId))
+                .WithColor(new Color(0xff0000))
+                .WithTimestamp(DateTimeOffset.UtcNow)
+                .WithFooter(new EmbedFooterProperties()
+                    .WithText(localizationService.GetString("leaderboard.error_footer", language)));
         }
     }
 
-    private string GetRankEmoji(int rank, List<Models.Emoji> rewardEmojis)
+    private static string GetRandomRewardEmoji(List<Models.Emoji> rewardEmojis)
     {
-        return rank switch
+        // Return a random reward emoji for goal achievers
+        if (!rewardEmojis.Any())
+            return string.Empty;
+            
+        var random = new Random();
+        var selectedEmoji = rewardEmojis[random.Next(rewardEmojis.Count)];
+        return selectedEmoji.EmojiCode;
+    }
+
+    private static string GetMotivationalFooter(int participants, int weeklyPoints, int goalsAchieved)
+    {
+        var participationLevel = participants switch
         {
-            1 => "🥇",
-            2 => "🥈", 
-            3 => "🥉",
-            _ when rank <= 10 => $"🏅",
-            _ => "▫️"
+            >= 20 => "Epic",
+            >= 15 => "Amazing", 
+            >= 8 => "Great",  // Adjusted: 8+ participants = "Great"
+            >= 3 => "Good",   // Adjusted: 3+ participants = "Good" 
+            _ => "Growing"
         };
+
+        // Override to "Epic" for high weekly points regardless of participant count
+        if (weeklyPoints >= 100)
+        {
+            participationLevel = "Epic";
+        }
+
+        var achievementRate = participants > 0 ? (double)goalsAchieved / participants : 0;
+        var achievementEmoji = achievementRate switch
+        {
+            >= 0.8 => "🔥",
+            >= 0.6 => "⭐",
+            >= 0.4 => "💪", 
+            >= 0.2 => "📈",
+            _ => "🌱"
+        };
+
+        return weeklyPoints switch
+        {
+            >= 100 => $"{participationLevel} productivity this week! {achievementEmoji} Keep the momentum going!",
+            >= 50 => $"{participationLevel} effort this week! {achievementEmoji} You're making progress!",
+            >= 20 => $"{participationLevel} start! {achievementEmoji} Every session counts!",
+            _ => $"Building momentum! {achievementEmoji} Every step forward matters!"
+        };
+    }
+
+    private static string GetFooterIcon(int participants)
+    {
+        // Return null to avoid invalid URL errors - could be configured with actual Discord CDN URLs
+        return null!;
     }
 }
 

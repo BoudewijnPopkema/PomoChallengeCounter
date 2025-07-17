@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 using Shouldly;
 using NetCord.Gateway;
 using PomoChallengeCounter.Services;
@@ -31,7 +30,7 @@ public class AutomationServiceTests : IDisposable
         services.AddSingleton<ITimeProvider>(_mockTimeProvider);
         services.AddSingleton<LocalizationService>();
         services.AddSingleton<IEmojiService, EmojiService>();
-        services.AddSingleton<NetCord.Gateway.GatewayClient>(provider => null);
+        services.AddSingleton<GatewayClient>(provider => null);
         services.AddScoped<IChallengeService, ChallengeService>();
         services.AddScoped<MessageProcessorService>();
         services.AddLogging();
@@ -419,8 +418,8 @@ public class AutomationServiceTests : IDisposable
     {
         var emojis = new[]
         {
-            new Models.Emoji { ServerId = serverId, EmojiCode = "🍅", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
-            new Models.Emoji { ServerId = serverId, EmojiCode = "⭐", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true }
+            new Emoji { ServerId = serverId, EmojiCode = "🍅", EmojiType = EmojiType.Pomodoro, PointValue = 25, IsActive = true },
+            new Emoji { ServerId = serverId, EmojiCode = "⭐", EmojiType = EmojiType.Bonus, PointValue = 5, IsActive = true }
         };
 
         _context.Emojis.AddRange(emojis);
@@ -431,9 +430,9 @@ public class AutomationServiceTests : IDisposable
     {
         var rewardEmojis = new[]
         {
-            new Models.Emoji { ServerId = serverId, EmojiCode = "🏅", EmojiType = EmojiType.Reward, PointValue = 10, IsActive = true },
-            new Models.Emoji { ServerId = serverId, EmojiCode = "🎖️", EmojiType = EmojiType.Reward, PointValue = 20, IsActive = true },
-            new Models.Emoji { ServerId = serverId, EmojiCode = "👑", EmojiType = EmojiType.Reward, PointValue = 30, IsActive = true }
+            new Emoji { ServerId = serverId, EmojiCode = "🏅", EmojiType = EmojiType.Reward, PointValue = 10, IsActive = true },
+            new Emoji { ServerId = serverId, EmojiCode = "🎖️", EmojiType = EmojiType.Reward, PointValue = 20, IsActive = true },
+            new Emoji { ServerId = serverId, EmojiCode = "👑", EmojiType = EmojiType.Reward, PointValue = 30, IsActive = true }
         };
 
         _context.Emojis.AddRange(rewardEmojis);

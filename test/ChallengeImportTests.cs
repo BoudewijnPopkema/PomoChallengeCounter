@@ -2,12 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
-using NetCord.Gateway;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
 using PomoChallengeCounter.Services;
 using Shouldly;
-using Xunit;
 
 namespace PomoChallengeCounter.Tests;
 
@@ -76,6 +74,9 @@ public class ChallengeImportTests : IDisposable
         services.AddSingleton(mockMessageLogger.Object);
         services.AddSingleton(mockEmojiService.Object);
 
+        var mockLocalizationService = new Mock<LocalizationService>(Mock.Of<ILogger<LocalizationService>>());
+        services.AddSingleton(mockLocalizationService.Object);
+
         var serviceProvider = services.BuildServiceProvider();
 
         _challengeService = new ChallengeService(_context, _timeProvider, null, serviceProvider, 
@@ -84,6 +85,7 @@ public class ChallengeImportTests : IDisposable
         _messageProcessor = new MessageProcessorService(_context, 
             serviceProvider.GetRequiredService<IEmojiService>(),
             serviceProvider,
+            serviceProvider.GetRequiredService<LocalizationService>(),
             serviceProvider.GetRequiredService<ILogger<MessageProcessorService>>());
     }
 
@@ -256,7 +258,7 @@ public class ChallengeImportTests : IDisposable
         await _context.SaveChangesAsync();
         
         // Add test emojis for point calculation
-        var tomatoEmoji = new Models.Emoji
+        var tomatoEmoji = new Emoji
         {
             ServerId = _testServer.Id,
             EmojiCode = "🍅",
@@ -265,7 +267,7 @@ public class ChallengeImportTests : IDisposable
             IsActive = true
         };
         
-        var starEmoji = new Models.Emoji
+        var starEmoji = new Emoji
         {
             ServerId = _testServer.Id,
             EmojiCode = "⭐",

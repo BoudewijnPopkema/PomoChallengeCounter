@@ -5,12 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Services;
 using Serilog;
-using NetCord;
 using NetCord.Gateway;
 using NetCord.Hosting.Gateway;
 using NetCord.Hosting.Services.ApplicationCommands;
-using NetCord.Hosting.Services.Commands;
-using Microsoft.Extensions.Logging;
 
 namespace PomoChallengeCounter;
 
@@ -69,6 +66,7 @@ internal static class Program
                 services.AddSingleton<EmojiService>();
                 services.AddScoped<MessageProcessorService>();
                 services.AddScoped<IChallengeService, ChallengeService>();
+                services.AddScoped<IDiscordThreadService, DiscordThreadService>();
                 
                 // Add NetCord application commands service
                 services.AddApplicationCommands();

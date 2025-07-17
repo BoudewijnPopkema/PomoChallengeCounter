@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 using Shouldly;
 using PomoChallengeCounter.Services;
 using PomoChallengeCounter.Data;
@@ -331,7 +330,7 @@ public class MessageHandlingServiceTests : IDisposable
         await _context.Weeks.AddAsync(week);
 
         // Add default tomato emoji
-        var emoji = new PomoChallengeCounter.Models.Emoji
+        var emoji = new Emoji
         {
             ServerId = 999,
             EmojiCode = "🍅", 

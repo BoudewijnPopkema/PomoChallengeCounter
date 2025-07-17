@@ -1,13 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 using Shouldly;
-using PomoChallengeCounter.Commands;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
 using PomoChallengeCounter.Services;
-using System;
-using System.Threading.Tasks;
 
 namespace PomoChallengeCounter.Tests.Commands;
 

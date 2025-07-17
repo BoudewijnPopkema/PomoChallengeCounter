@@ -1,13 +1,15 @@
-using NetCord;
-using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using Microsoft.EntityFrameworkCore;
-using PomoChallengeCounter.Data;
+using PomoChallengeCounter.Services;
+using PomoChallengeCounter.Models;
 
 namespace PomoChallengeCounter.Commands;
 
 public class ThreadCommands : BaseCommand
 {
+    public IDiscordThreadService DiscordThreadService { get; set; } = null!;
+    public IChallengeService ChallengeService { get; set; } = null!;
+
     [SlashCommand("thread-create", "Create a new week thread")]
     public async Task CreateThreadAsync(
         [SlashCommandParameter(Name = "week_number", Description = "Week number")] int weekNumber,
@@ -25,12 +27,89 @@ public class ThreadCommands : BaseCommand
                 return;
             }
 
-            // TODO: Implement proper thread creation logic
-            await RespondAsync($"Thread creation for week {weekNumber} is being implemented for NetCord");
+            if (!server.CategoryId.HasValue)
+            {
+                await RespondAsync(GetLocalizedText("errors.category_not_configured"), ephemeral: true);
+                return;
+            }
+
+            // Get the challenge (current or specified)
+            var challenge = challengeId.HasValue 
+                ? await ChallengeService.GetChallengeAsync(challengeId.Value)
+                : await ChallengeService.GetCurrentChallengeAsync(Context.Guild.Id);
+
+            if (challenge == null)
+            {
+                await RespondAsync(GetLocalizedText("errors.challenge_not_found"), ephemeral: true);
+                return;
+            }
+
+            // Validate week number
+            if (weekNumber < 0 || weekNumber > challenge.WeekCount)
+            {
+                await RespondAsync(GetLocalizedText("errors.invalid_week_number", weekNumber, challenge.WeekCount), ephemeral: true);
+                return;
+            }
+
+            // Check if week already exists
+            var existingWeek = await DbContext.Weeks
+                .FirstOrDefaultAsync(w => w.ChallengeId == challenge.Id && w.WeekNumber == weekNumber);
+
+            if (existingWeek != null && existingWeek.ThreadId != 0)
+            {
+                await RespondAsync(GetLocalizedText("errors.week_already_exists", weekNumber), ephemeral: true);
+                return;
+            }
+
+            await DeferAsync(); // Thread creation might take a moment
+
+            // Create thread name
+            var threadName = $"Q{challenge.SemesterNumber}-week{weekNumber}";
+            
+            // Create welcome message
+            var welcomeMessages = GetLocalizedText("responses.welcome_messages").Split('\n');
+            var randomWelcome = welcomeMessages[Random.Shared.Next(welcomeMessages.Length)];
+            var welcomeMessage = string.Format(randomWelcome, weekNumber);
+
+            // Create the Discord thread
+            var threadResult = await DiscordThreadService.CreateThreadAsync(
+                Context.Guild.Id,
+                server.CategoryId.Value,
+                threadName,
+                weekNumber,
+                welcomeMessage,
+                server.PingRoleId);
+
+            if (!threadResult.IsSuccess)
+            {
+                await FollowupAsync($"❌ Failed to create thread: {threadResult.ErrorMessage}", ephemeral: true);
+                return;
+            }
+
+            // Create or update week record
+            if (existingWeek == null)
+            {
+                var week = new Week
+                {
+                    ChallengeId = challenge.Id,
+                    WeekNumber = weekNumber,
+                    ThreadId = threadResult.ThreadId,
+                    LeaderboardPosted = false
+                };
+                await DbContext.Weeks.AddAsync(week);
+            }
+            else
+            {
+                existingWeek.ThreadId = threadResult.ThreadId;
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            await FollowupAsync(GetLocalizedText("responses.thread_created", threadName, $"<#{threadResult.ThreadId}>"));
         }
         catch (Exception ex)
         {
-            await RespondAsync($"Error creating thread: {ex.Message}", ephemeral: true);
+            await FollowupAsync($"❌ Error creating thread: {ex.Message}", ephemeral: true);
         }
     }
 

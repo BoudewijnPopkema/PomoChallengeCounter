@@ -20,5 +20,8 @@ public class ChallengeLeaderboardEntry
     public bool WeeklyGoalAchieved => WeeklyPoints >= WeeklyGoalPoints;
     public int WeeklyMessageCount { get; set; }
     
+    // Goal for next week (set during current week)
+    public int NextWeekGoalPoints { get; set; }
+    
     public string? RewardEmoji { get; set; }
 } 

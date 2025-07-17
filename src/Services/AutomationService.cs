@@ -8,7 +8,6 @@ using NetCord.Rest;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
 using PomoChallengeCounter.Models.Results;
-using PomoChallengeCounter.Services;
 
 namespace PomoChallengeCounter.Services;
 
@@ -169,11 +168,6 @@ public class AutomationService(
         {
             // Get the Discord guild
             var guild = await gatewayClient.Rest.GetGuildAsync(challenge.ServerId);
-            if (guild == null)
-            {
-                logger.LogError("Could not find guild {ServerId} for challenge {ChallengeId}", challenge.ServerId, challenge.Id);
-                return;
-            }
 
             logger.LogInformation("Creating Discord thread for challenge {ChallengeId}, week {WeekNumber}", challenge.Id, weekNumber);
 
@@ -182,9 +176,9 @@ public class AutomationService(
             
             // Find the challenge channel by name (look for challenge theme or Q# pattern)
             var challengeChannel = channels.FirstOrDefault(c => 
-                c.Name?.Contains(challenge.Theme.ToLowerInvariant().Replace(" ", "-")) == true ||
-                c.Name?.Contains($"q{challenge.SemesterNumber}") == true ||
-                c.Name?.Contains("challenge") == true);
+                c.Name.Contains(challenge.Theme.ToLowerInvariant().Replace(" ", "-")) ||
+                c.Name.Contains($"q{challenge.SemesterNumber}") ||
+                c.Name.Contains("challenge"));
 
             if (challengeChannel == null)
             {
@@ -192,12 +186,24 @@ public class AutomationService(
                     challenge.ServerId, challenge.Id, string.Join(", ", channels.Select(c => c.Name)));
                     
                 // Create week record anyway for database consistency
-                await CreateWeekRecord(challenge.Id, weekNumber, 0, existingWeek);
+                await CreateWeekRecord(challenge.Id, weekNumber, 0, existingWeek, weekNumber == 0);
                 return;
             }
 
-            // Create the thread name
-            var threadName = $"Q{challenge.SemesterNumber}-week{weekNumber}";
+            // Create the thread name based on week number
+            string threadName;
+            if (weekNumber == 0)
+            {
+                // Week 0 is for goal setting - use localized "inzet" pattern
+                var serverLanguage = challenge.Server.Language;
+                var goalThreadSuffix = serverLanguage == "nl" ? "inzet" : "goals";
+                threadName = $"Q{challenge.SemesterNumber}-{goalThreadSuffix}";
+            }
+            else
+            {
+                // Regular week threads
+                threadName = $"Q{challenge.SemesterNumber}-week{weekNumber}";
+            }
             
             logger.LogInformation("Found challenge channel {ChannelName} ({ChannelId}), creating thread {ThreadName}",
                 challengeChannel.Name, challengeChannel.Id, threadName);
@@ -213,7 +219,7 @@ public class AutomationService(
                 if (challengeChannel is TextGuildChannel textChannel)
                 {
                     // Create thread with NetCord's CreateGuildThreadAsync - simplified for now
-                    var threadProperties = new NetCord.Rest.GuildThreadProperties(threadName);
+                    var threadProperties = new GuildThreadProperties(threadName);
                     
                     var createdThread = await textChannel.CreateGuildThreadAsync(threadProperties);
                     
@@ -221,7 +227,7 @@ public class AutomationService(
                         threadName, createdThread.Id, challengeChannel.Name);
                     
                     // Create or update week record with actual thread ID
-                    await CreateWeekRecord(challenge.Id, weekNumber, createdThread.Id, existingWeek);
+                    await CreateWeekRecord(challenge.Id, weekNumber, createdThread.Id, existingWeek, weekNumber == 0);
                     
                     // Send welcome message to thread with role ping
                     await SendThreadWelcomeMessageAsync(createdThread, challenge);
@@ -233,7 +239,7 @@ public class AutomationService(
                 {
                     logger.LogWarning("Channel {ChannelName} is not a TextGuildChannel, cannot create thread", challengeChannel.Name);
                     // Fallback to placeholder for non-text channels
-                    await CreateWeekRecord(challenge.Id, weekNumber, challengeChannel.Id, existingWeek);
+                    await CreateWeekRecord(challenge.Id, weekNumber, challengeChannel.Id, existingWeek, weekNumber == 0);
                 }
                 
                 logger.LogInformation("Thread creation and setup completed for week {WeekNumber} in challenge {ChallengeId}", 
@@ -245,7 +251,7 @@ public class AutomationService(
                     threadName, challengeChannel.Name, threadEx.Message);
                     
                 // Still create week record for database consistency
-                await CreateWeekRecord(challenge.Id, weekNumber, 0, existingWeek);
+                await CreateWeekRecord(challenge.Id, weekNumber, 0, existingWeek, weekNumber == 0);
             }
         }
         catch (Exception ex)
@@ -329,7 +335,63 @@ public class AutomationService(
             var context = scope.ServiceProvider.GetRequiredService<PomoChallengeDbContext>();
             var messageProcessor = scope.ServiceProvider.GetRequiredService<MessageProcessorService>();
 
-            // 1. Generate leaderboard embed using the reusable method
+            // 1. Rescan the entire week before leaderboard generation to ensure accuracy
+            // Skip rescanning if Discord client is not available (test environment)
+            if (gatewayClient?.Rest != null)
+            {
+                logger.LogInformation("Rescanning week {WeekNumber} before leaderboard generation", week.WeekNumber);
+                
+                // Get all current messages from the thread to rescan
+                var threadMessages = new List<(ulong MessageId, ulong UserId, string Content)>();
+                
+                try
+                {
+                    var channel = await gatewayClient.Rest.GetChannelAsync(week.ThreadId);
+                    if (channel is NetCord.TextChannel textChannel)
+                    {
+                        await foreach (var message in textChannel.GetMessagesAsync())
+                        {
+                            // Skip bot messages
+                            if (message.Author.IsBot)
+                                continue;
+                                
+                            threadMessages.Add((message.Id, message.Author.Id, message.Content ?? string.Empty));
+                        }
+                        
+                        logger.LogInformation("Found {MessageCount} messages to rescan for week {WeekNumber}", 
+                            threadMessages.Count, week.WeekNumber);
+                    }
+                }
+                catch (Exception rescanEx)
+                {
+                    logger.LogWarning(rescanEx, "Failed to fetch messages for week rescan, proceeding with existing data");
+                }
+                
+                // Perform the rescan if we have messages
+                if (threadMessages.Any())
+                {
+                    try
+                    {
+                        var rescanResult = await messageProcessor.RescanWeekAsync(week.Id, threadMessages);
+                        logger.LogInformation("Week rescan completed: {Processed} processed, {Skipped} skipped, {Deleted} deleted", 
+                            rescanResult.ProcessedCount, rescanResult.SkippedCount, rescanResult.DeletedCount);
+                    }
+                    catch (Exception rescanEx2)
+                    {
+                        logger.LogWarning(rescanEx2, "Week rescan failed, proceeding with existing data");
+                    }
+                }
+                else
+                {
+                    logger.LogInformation("No messages found for week {WeekNumber}, proceeding with existing data", week.WeekNumber);
+                }
+            }
+            else
+            {
+                logger.LogDebug("Discord client not available, skipping week rescan");
+            }
+
+            // 2. Generate leaderboard embed using the reusable method
             var embed = await messageProcessor.GenerateLeaderboardEmbedAsync(week.Id);
             
             // Check if there's any leaderboard data by looking at the embed description
@@ -404,143 +466,13 @@ public class AutomationService(
         }
     }
 
-    private async Task<EmbedProperties> CreateLeaderboardEmbedAsync(
-        List<ChallengeLeaderboardEntry> leaderboardData, 
-        Week week, 
-        Challenge challenge)
-    {
-        var embed = new EmbedProperties()
-            .WithTitle($"🏆 Challenge Leaderboard - Week {week.WeekNumber}")
-            .WithColor(new Color(0xffd700)) // Gold color
-            .WithDescription($"**{challenge.Theme}** - Semester {challenge.SemesterNumber}\nRanked by total challenge score with this week's progress")
-            .WithTimestamp(DateTimeOffset.UtcNow);
+    // NOTE: Removed duplicate CreateLeaderboardEmbedAsync method
+    // The actual implementation is in MessageProcessorService.GenerateLeaderboardEmbedAsync()
 
-        // Get available reward emojis for this challenge/server
-        using var scope = serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<PomoChallengeDbContext>();
-        
-        var rewardEmojis = await context.Emojis
-            .Where(e => e.ServerId == challenge.ServerId && e.IsActive && e.EmojiType == EmojiType.Reward)
-            .Where(e => e.ChallengeId == null || e.ChallengeId == challenge.Id)
-            .OrderBy(e => e.PointValue)
-            .ToListAsync();
+    // NOTE: Removed duplicate GetRankEmoji method
+    // The actual implementation is in MessageProcessorService.GetRankEmoji()
 
-        // Show ALL participants ranked by total challenge score
-        if (leaderboardData.Any())
-        {
-            var leaderboardText = string.Empty;
-            
-            for (int i = 0; i < leaderboardData.Count; i++)
-            {
-                var entry = leaderboardData[i];
-                var rank = i + 1;
-                var rankEmoji = GetRankEmoji(rank, rewardEmojis);
-                
-                // Format user mention and total challenge stats
-                var userName = $"<@{entry.UserId}>";
-                var totalStats = $"{entry.TotalPoints} pts total";
-                
-                if (entry.TotalPomodoroPoints > 0 || entry.TotalBonusPoints > 0)
-                {
-                    totalStats += $" ({entry.TotalPomodoroPoints}🍅";
-                    if (entry.TotalBonusPoints > 0)
-                        totalStats += $" + {entry.TotalBonusPoints}⭐";
-                    totalStats += ")";
-                }
-                
-                // Weekly progress for this week
-                var weeklyProgress = "";
-                if (entry.WeeklyPoints > 0)
-                {
-                    weeklyProgress = $" | +{entry.WeeklyPoints} this week";
-                    if (entry.WeeklyPomodoroPoints > 0 || entry.WeeklyBonusPoints > 0)
-                    {
-                        weeklyProgress += $" ({entry.WeeklyPomodoroPoints}🍅";
-                        if (entry.WeeklyBonusPoints > 0)
-                            weeklyProgress += $" + {entry.WeeklyBonusPoints}⭐";
-                        weeklyProgress += ")";
-                    }
-                }
-                
-                // Goal achievement indicator using reward emojis
-                var goalStatus = "";
-                if (entry.TotalGoalAchieved && rewardEmojis.Any())
-                {
-                    // Use first reward emoji for goal achievement
-                    var goalRewardEmoji = rewardEmojis.First().EmojiCode;
-                    goalStatus = $" {goalRewardEmoji}";
-                }
-                else if (entry.TotalGoalPoints > 0 && !entry.TotalGoalAchieved)
-                {
-                    goalStatus = $" 🎯{entry.TotalGoalPoints}";
-                }
-                
-                leaderboardText += $"{rankEmoji} **{rank}.** {userName} - {totalStats}{weeklyProgress}{goalStatus}\n";
-            }
-            
-            embed.AddFields(new EmbedFieldProperties()
-                .WithName("🏆 Challenge Leaderboard")
-                .WithValue(leaderboardText.Trim())
-                .WithInline(false));
-        }
-
-        // Add summary statistics
-        var totalParticipants = leaderboardData.Count;
-        var totalMessages = leaderboardData.Sum(x => x.TotalMessageCount);
-        var totalPoints = leaderboardData.Sum(x => x.TotalPoints);
-        var goalsAchieved = leaderboardData.Count(x => x.TotalGoalAchieved);
-        var weeklyMessages = leaderboardData.Sum(x => x.WeeklyMessageCount);
-        var weeklyPoints = leaderboardData.Sum(x => x.WeeklyPoints);
-        
-        var summaryText = $"**{totalParticipants}** participants\n" +
-                         $"**{totalPoints}** total points | **{weeklyPoints}** this week\n" +
-                         $"**{totalMessages}** total messages | **{weeklyMessages}** this week\n" +
-                         $"**{goalsAchieved}** goals achieved 🎯";
-        
-        embed.AddFields(new EmbedFieldProperties()
-            .WithName("📈 Challenge Progress")
-            .WithValue(summaryText)
-            .WithInline(true));
-
-        // Add motivational footer based on participation
-        var footerText = totalParticipants switch
-        {
-            >= 20 => "Amazing participation this week! 🚀",
-            >= 10 => "Great turnout everyone! 💪",
-            >= 5 => "Nice work this week! 📚",
-            _ => "Keep it up! Every session counts! ⭐"
-        };
-        
-        embed.WithFooter(new EmbedFooterProperties().WithText(footerText));
-
-        return embed;
-    }
-
-    private static string GetRankEmoji(int rank, List<Models.Emoji> rewardEmojis)
-    {
-        // If we have reward emojis configured, use them for top ranks
-        if (rewardEmojis.Any())
-        {
-            return rank switch
-            {
-                1 when rewardEmojis.Count >= 3 => rewardEmojis[^1].EmojiCode, // Highest value reward for 1st
-                2 when rewardEmojis.Count >= 2 => rewardEmojis[^2].EmojiCode, // Second highest for 2nd  
-                3 when rewardEmojis.Count >= 1 => rewardEmojis[^3].EmojiCode, // Third highest for 3rd
-                _ when rewardEmojis.Count >= 1 => rewardEmojis[0].EmojiCode    // Lowest reward for others
-            };
-        }
-        
-        // Fallback to default emojis if no reward emojis configured
-        return rank switch
-        {
-            1 => "🏆",
-            2 => "🥈", 
-            3 => "🥉",
-            _ => "��"
-        };
-    }
-
-    private async Task CreateWeekRecord(int challengeId, int weekNumber, ulong threadId, Week? existingWeek)
+    private async Task CreateWeekRecord(int challengeId, int weekNumber, ulong threadId, Week? existingWeek, bool isGoalThread = false)
     {
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<PomoChallengeDbContext>();
@@ -551,24 +483,35 @@ public class AutomationService(
             {
                 ChallengeId = challengeId,
                 WeekNumber = weekNumber,
-                ThreadId = threadId,
+                ThreadId = isGoalThread ? 0 : threadId,  // Regular thread ID for non-goal threads
+                GoalThreadId = isGoalThread ? threadId : null,  // Goal thread ID for week 0
                 LeaderboardPosted = false
             };
             await context.Weeks.AddAsync(week);
             await context.SaveChangesAsync();
             
-            logger.LogInformation("Created week record: Challenge {ChallengeId}, Week {WeekNumber}, ThreadId {ThreadId}",
-                challengeId, weekNumber, threadId);
+            var threadType = isGoalThread ? "Goal" : "Regular";
+            logger.LogInformation("Created {ThreadType} week record: Challenge {ChallengeId}, Week {WeekNumber}, ThreadId {ThreadId}",
+                threadType, challengeId, weekNumber, threadId);
         }
-        else if (existingWeek.ThreadId != threadId)
+        else
         {
-            // Update existing week with thread ID
-            existingWeek.ThreadId = threadId;
+            // Update existing week with appropriate thread ID
+            if (isGoalThread)
+            {
+                existingWeek.GoalThreadId = threadId;
+            }
+            else
+            {
+                existingWeek.ThreadId = threadId;
+            }
+            
             context.Weeks.Update(existingWeek);
             await context.SaveChangesAsync();
             
-            logger.LogInformation("Updated week record with ThreadId {ThreadId}: Challenge {ChallengeId}, Week {WeekNumber}",
-                threadId, challengeId, weekNumber);
+            var threadType = isGoalThread ? "Goal" : "Regular";
+            logger.LogInformation("Updated week record with {ThreadType} ThreadId {ThreadId}: Challenge {ChallengeId}, Week {WeekNumber}",
+                threadType, threadId, challengeId, weekNumber);
         }
     }
 
@@ -577,7 +520,7 @@ public class AutomationService(
         try
         {
             // Get localized welcome messages based on server language
-            var serverLanguage = challenge.Server.Language ?? "en";
+            var serverLanguage = challenge.Server.Language;
             var message = GetRandomWelcomeMessage(serverLanguage, GetCurrentWeekNumber(challenge));
             
             // Add role ping if configured

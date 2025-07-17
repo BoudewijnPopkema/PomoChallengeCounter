@@ -5,7 +5,7 @@
       "description": "Initiële bot setup voor de server",
       "options": {
         "language": "Server taal (en/nl, standaard: en)",
-        "category": "Discord categorie voor uitdagingen",
+        "category": "Discord categorie voor challenges",
         "config_role": "Rol voor bot configuratie permissies",
         "ping_role": "Rol om te pingen voor nieuwe threads"
       }
@@ -13,7 +13,7 @@
     "config": {
       "category": {
         "name": "categorie",
-        "description": "Stel de categorie in waar uitdagingen worden aangemaakt"
+        "description": "Stel de categorie in waar challenges worden aangemaakt"
       },
       "language": {
         "name": "taal",
@@ -27,31 +27,31 @@
     "challenge": {
       "create": {
         "name": "creeer",
-        "description": "Maak een nieuwe pomodoro uitdaging"
+        "description": "Maak een nieuwe pomodoro challenge"
       },
       "start": {
         "name": "start",
-        "description": "Start de huidige uitdaging"
+        "description": "Start de huidige challenge"
       },
       "stop": {
         "name": "stop",
-        "description": "Stop de huidige uitdaging"
+        "description": "Stop de huidige challenge"
       },
       "info": {
         "name": "info",
-        "description": "Toon uitdaging informatie"
+        "description": "Toon challenge informatie"
       },
       "list": {
         "name": "lijst",
-        "description": "Toon alle uitdagingen voor de server"
+        "description": "Toon alle challenges voor de server"
       },
       "import": {
         "name": "importeer",
-        "description": "Importeer bestaande uitdaging van Discord kanaal"
+        "description": "Importeer bestaande challenge van Discord kanaal"
       },
       "deactivate": {
         "name": "deactiveer",
-        "description": "Deactiveer uitdaging zonder Discord content te verwijderen"
+        "description": "Deactiveer challenge zonder Discord content te verwijderen"
       }
     },
     "emoji": {
@@ -78,15 +78,33 @@
     "category_updated": "Challenge categorie geüpdatet naar: {0}",
     "language_updated": "Server taal geüpdatet naar: {0}",
     "roles_updated": "Rollen geüpdatet - Config rol: {0}, Ping rol: {1}",
-    "challenge_created": "Uitdaging '{0}' succesvol aangemaakt!",
-    "challenge_started": "Uitdaging '{0}' is gestart!",
-    "challenge_stopped": "Uitdaging '{0}' is gestopt!",
-    "challenge_deactivated": "Uitdaging '{0}' is gedeactiveerd!",
+    "challenge_created": "Challenge '{0}' succesvol aangemaakt!",
+    "challenge_started": "Challenge '{0}' is gestart!",
+    "challenge_stopped": "Challenge '{0}' is gestopt!",
+    "challenge_deactivated": "Challenge '{0}' is gedeactiveerd!",
     "emoji_added": "Emoji {0} toegevoegd met {1} punten als {2} type {3}!",
     "emoji_removed": "Emoji {0} is verwijderd van het systeem",
     "emoji_updated": "Emoji {0} geüpdatet: {1}",
     "leaderboard_title": "📊 Week {0} Ranglijst - {1}",
-    "goal_achieved": "🎯 Doel behaald!",
+    "leaderboard": {
+      "title": "🏆 Challenge Ranglijst - Week {0}",
+      "description": "**{0}** - Q{1}\n*Gerangschikt op totaalscore met voortgang van deze week*",
+      "author_name": "Q{0} Challenge Voortgang",
+      "field_title": "🏆 Challenge Ranglijst",
+      "statistics_title": "📊 Challenge Statistieken",
+      "no_data": "Geen gegevens gevonden voor deze week.",
+      "points_total": "ptn totaal",
+      "this_week": "deze week",
+      "goal_next_week": "Inzet: {0} ptn",
+      "participants": "deelnemers",
+      "total_points": "totale punten",
+      "total_messages": "totale berichten",
+      "goals_achieved": "inzets behaald",
+      "error_title": "❌ Ranglijst Fout",
+      "error_description": "Kan ranglijst voor week {0} niet genereren.\nNeem contact op met een beheerder als dit probleem aanhoudt.",
+      "error_footer": "Fout opgetreden bij het genereren van de ranglijst"
+    },
+    "goal_achieved": "🎯 Inzet behaald!",
     "thread_created": "Thread '{0}' succesvol aangemaakt: {1}",
     "welcome_messages": [
       "Nieuwe week, tijd om te studeren! Laten we dit doen 🍅",
@@ -108,7 +126,7 @@
     "invalid_language": "Ongeldige taal. Gebruik 'en' voor Engels of 'nl' voor Nederlands",
     "invalid_date": "Ongeldig datum formaat. Gebruik YYYY-MM-DD",
     "invalid_emoji": "Ongeldig emoji formaat",
-    "challenge_not_found": "Uitdaging niet gevonden",
+    "challenge_not_found": "Challenge niet gevonden",
     "emoji_not_found": "Emoji configuratie niet gevonden",
     "database_error": "Database fout opgetreden",
     "discord_error": "Discord API fout opgetreden",
@@ -117,14 +135,14 @@
     "validation_error": "Validatie fout: {0}",
     "operation_error": "Operatie gefaald: {0}",
     "invalid_points": "Punt waarde moet tussen 1 en 999 zijn",
-    "invalid_emoji_type": "Ongeldig emoji type. Gebruik: pomodoro, bonus, goal, of reward",
+    "invalid_emoji_type": "Ongeldig emoji type. Gebruik: pomodoro, bonus, inzet, of beloning",
     "challenge_id_required": "Challenge ID is vereist voor challenge-specifieke emojis",
     "emoji_already_exists": "Deze emoji is al geconfigureerd voor deze scope",
     "no_changes_specified": "Geen wijzigingen opgegeven. Geef punten of actieve status op om te updaten",
     "invalid_week_number": "Ongeldig week nummer {0}. Moet tussen 0 en {1} zijn",
-    "week_already_exists": "Week {0} bestaat al voor deze uitdaging",
+    "week_already_exists": "Week {0} bestaat al voor deze challenge",
     "category_not_configured": "Geen categorie geconfigureerd. Voer eerst /setup uit",
     "ping_role_not_configured": "Geen ping rol geconfigureerd. Gebruik /config roles om er een in te stellen",
-    "week_not_found": "Week {0} niet gevonden voor deze uitdaging"
+    "week_not_found": "Week {0} niet gevonden voor deze challenge"
   }
 } 

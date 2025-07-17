@@ -1,13 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 using Shouldly;
-using PomoChallengeCounter.Commands;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
 using PomoChallengeCounter.Services;
-using System;
-using System.Threading.Tasks;
 
 namespace PomoChallengeCounter.Tests.Commands;
 
@@ -94,7 +90,7 @@ public class EmojiCommandsTests : IDisposable
         var challenge = await CreateTestChallengeAsync(serverId);
 
         // Act - Simulate database operations that would happen in the command
-        var newEmoji = new Models.Emoji
+        var newEmoji = new Emoji
         {
             ServerId = serverId,
             ChallengeId = challenge.Id,
@@ -126,7 +122,7 @@ public class EmojiCommandsTests : IDisposable
         var server = await CreateTestServerAsync(serverId);
         
         // Create first emoji
-        var existingEmoji = new Models.Emoji
+        var existingEmoji = new Emoji
         {
             ServerId = serverId,
             ChallengeId = null,
@@ -157,7 +153,7 @@ public class EmojiCommandsTests : IDisposable
         const ulong serverId = 12345;
         var server = await CreateTestServerAsync(serverId);
         
-        var emoji = new Models.Emoji
+        var emoji = new Emoji
         {
             ServerId = serverId,
             EmojiCode = "🍅",
@@ -192,7 +188,7 @@ public class EmojiCommandsTests : IDisposable
         const ulong serverId = 12345;
         var server = await CreateTestServerAsync(serverId);
         
-        var emoji = new Models.Emoji
+        var emoji = new Emoji
         {
             ServerId = serverId,
             EmojiCode = "🍅",
@@ -234,7 +230,7 @@ public class EmojiCommandsTests : IDisposable
         const ulong serverId = 12345;
         var server = await CreateTestServerAsync(serverId);
         
-        var activeEmoji = new Models.Emoji
+        var activeEmoji = new Emoji
         {
             ServerId = serverId,
             EmojiCode = "🍅",
@@ -243,7 +239,7 @@ public class EmojiCommandsTests : IDisposable
             IsActive = true
         };
         
-        var inactiveEmoji = new Models.Emoji
+        var inactiveEmoji = new Emoji
         {
             ServerId = serverId,
             EmojiCode = "🔥",
@@ -324,7 +320,7 @@ public class EmojiCommandsTests : IDisposable
         var server = await CreateTestServerAsync(serverId);
         
         // Add emoji in Unicode format first
-        var unicodeEmoji = new Models.Emoji
+        var unicodeEmoji = new Emoji
         {
             ServerId = serverId,
             ChallengeId = null,
@@ -356,7 +352,7 @@ public class EmojiCommandsTests : IDisposable
         var server = await CreateTestServerAsync(serverId);
         
         // Add emoji in shortcode format
-        var shortcodeEmoji = new Models.Emoji
+        var shortcodeEmoji = new Emoji
         {
             ServerId = serverId,
             ChallengeId = null,

@@ -1,0 +1,28 @@
+---
+description: Project documentation workflow and synchronization
+alwaysApply: true
+---
+
+Always reference the /docs folder when working on this project. Key documents include:
+
+- architecture.md: System design, patterns, and component relationships
+- technical-specifications.md: Detailed implementation specs and requirements
+- workflow.md: Development processes and operational procedures
+- features.md: Feature descriptions and business logic
+- requirements.md: Core project requirements and constraints
+- commands.md: Discord bot command specifications
+- database-schema.md: Data model and schema definitions
+- configuration.md: Setup and configuration details
+
+Before implementing changes:
+1. Review relevant documentation to understand current design
+2. Check if proposed changes align with documented architecture
+3. Consider impact on related components described in docs
+
+After implementing changes that differ from documentation:
+1. Update affected documentation files to reflect new reality
+2. Ensure consistency across related docs
+3. Update technical specs if core functionality changes
+4. Maintain alignment between code and documented behavior
+
+The documentation serves as the source of truth for intended behavior - keep it current and accurate.
