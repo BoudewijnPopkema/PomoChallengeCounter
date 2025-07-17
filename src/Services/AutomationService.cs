@@ -498,12 +498,12 @@ public class AutomationService(
         {
             // Update existing week with appropriate thread ID
             if (isGoalThread)
-            {
+        {
                 existingWeek.GoalThreadId = threadId;
             }
             else
             {
-                existingWeek.ThreadId = threadId;
+            existingWeek.ThreadId = threadId;
             }
             
             context.Weeks.Update(existingWeek);

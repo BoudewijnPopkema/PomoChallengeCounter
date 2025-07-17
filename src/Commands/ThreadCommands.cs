@@ -82,7 +82,7 @@ public class ThreadCommands : BaseCommand
 
             if (!threadResult.IsSuccess)
             {
-                await FollowupAsync($"❌ Failed to create thread: {threadResult.ErrorMessage}", ephemeral: true);
+                await FollowupAsync(GetLocalizedText("errors.failed_to_create_thread", threadResult.ErrorMessage), ephemeral: true);
                 return;
             }
 
@@ -109,7 +109,7 @@ public class ThreadCommands : BaseCommand
         }
         catch (Exception ex)
         {
-            await FollowupAsync($"❌ Error creating thread: {ex.Message}", ephemeral: true);
+            await FollowupAsync(GetLocalizedText("errors.error_creating_thread", ex.Message), ephemeral: true);
         }
     }
 
@@ -138,7 +138,7 @@ public class ThreadCommands : BaseCommand
         }
         catch (Exception ex)
         {
-            await RespondAsync($"Error pinging role: {ex.Message}", ephemeral: true);
+            await RespondAsync(GetLocalizedText("errors.error_pinging_role", ex.Message), ephemeral: true);
         }
     }
 

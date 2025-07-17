@@ -30,7 +30,7 @@ public class EmojiCommands : BaseCommand
             // Validate emoji format
             if (!EmojiService.ValidateEmojiFormat(emoji, out var format))
             {
-                await RespondAsync("❌ Invalid emoji format. Please use a valid Discord emoji, shortcode (:like_this:), or Unicode emoji.", ephemeral: true);
+                await RespondAsync(GetLocalizedText("errors.invalid_emoji_format"), ephemeral: true);
                 return;
             }
 
@@ -40,7 +40,7 @@ public class EmojiCommands : BaseCommand
             // Validate point value  
             if (!EmojiService.ValidatePointValue(points))
             {
-                await RespondAsync("❌ Point value must be between 1 and 999.", ephemeral: true);
+                await RespondAsync(GetLocalizedText("errors.point_value_range"), ephemeral: true);
                 return;
             }
 
@@ -48,7 +48,7 @@ public class EmojiCommands : BaseCommand
             if (!Enum.TryParse<EmojiType>(type, true, out var emojiType) || !Enum.IsDefined(typeof(EmojiType), emojiType))
             {
                 var validTypes = string.Join(", ", Enum.GetNames<EmojiType>());
-                await RespondAsync($"❌ Invalid emoji type. Valid types: {validTypes}", ephemeral: true);
+                await RespondAsync(GetLocalizedText("errors.invalid_emoji_type_message", validTypes), ephemeral: true);
                 return;
             }
 
@@ -59,7 +59,7 @@ public class EmojiCommands : BaseCommand
                     .AnyAsync(c => c.Id == challengeId.Value && c.ServerId == server.Id);
                 if (!challengeExists)
                 {
-                    await RespondAsync("❌ Challenge not found.", ephemeral: true);
+                    await RespondAsync(GetLocalizedText("errors.challenge_not_found_simple"), ephemeral: true);
                     return;
                 }
             }
@@ -73,7 +73,7 @@ public class EmojiCommands : BaseCommand
             
             if (duplicateExists)
             {
-                await RespondAsync("❌ This emoji (or its equivalent) is already configured for this server/challenge.", ephemeral: true);
+                await RespondAsync(GetLocalizedText("errors.emoji_already_configured"), ephemeral: true);
                 return;
             }
 
@@ -93,7 +93,7 @@ public class EmojiCommands : BaseCommand
 
             // Create success embed
             var embed = new EmbedProperties()
-                .WithTitle("✅ Emoji Added Successfully")
+                .WithTitle(GetLocalizedText("errors.emoji_added_success"))
                 .WithColor(new Color(0x00ff00))
                 .WithDescription($"Emoji has been configured for tracking!")
                 .AddFields(
@@ -116,7 +116,7 @@ public class EmojiCommands : BaseCommand
         }
         catch (Exception ex)
         {
-            await RespondAsync($"❌ Error adding emoji: {ex.Message}", ephemeral: true);
+            await RespondAsync(GetLocalizedText("errors.error_adding_emoji", ex.Message), ephemeral: true);
         }
     }
 
@@ -164,7 +164,7 @@ public class EmojiCommands : BaseCommand
         }
         catch (Exception ex)
         {
-            await RespondAsync($"Error listing emojis: {ex.Message}", ephemeral: true);
+            await RespondAsync(GetLocalizedText("errors.error_listing_emojis", ex.Message), ephemeral: true);
         }
     }
 
@@ -192,7 +192,7 @@ public class EmojiCommands : BaseCommand
             
             if (existingEmoji == null)
             {
-                await RespondAsync("❌ Emoji not found or already removed.", ephemeral: true);
+                await RespondAsync(GetLocalizedText("errors.emoji_not_found_or_removed"), ephemeral: true);
                 return;
             }
 
@@ -202,7 +202,7 @@ public class EmojiCommands : BaseCommand
 
             // Create success embed
             var embed = new EmbedProperties()
-                .WithTitle("✅ Emoji Removed Successfully")
+                .WithTitle(GetLocalizedText("errors.emoji_removed_success"))
                 .WithColor(new Color(0xff9900))
                 .WithDescription($"Emoji {emoji} has been removed from tracking!")
                 .AddFields(
@@ -222,7 +222,7 @@ public class EmojiCommands : BaseCommand
         }
         catch (Exception ex)
         {
-            await RespondAsync($"❌ Error removing emoji: {ex.Message}", ephemeral: true);
+            await RespondAsync(GetLocalizedText("errors.error_removing_emoji", ex.Message), ephemeral: true);
         }
     }
 
@@ -252,7 +252,7 @@ public class EmojiCommands : BaseCommand
             
             if (existingEmoji == null)
             {
-                await RespondAsync("❌ Emoji not found.", ephemeral: true);
+                await RespondAsync(GetLocalizedText("errors.emoji_not_found_simple"), ephemeral: true);
                 return;
             }
 
@@ -266,7 +266,7 @@ public class EmojiCommands : BaseCommand
                 if (!Enum.TryParse<EmojiType>(type, true, out var emojiType) || !Enum.IsDefined(typeof(EmojiType), emojiType))
                 {
                     var validTypes = string.Join(", ", Enum.GetNames<EmojiType>());
-                    await RespondAsync($"❌ Invalid emoji type. Valid types: {validTypes}", ephemeral: true);
+                    await RespondAsync(GetLocalizedText("errors.invalid_emoji_type_message", validTypes), ephemeral: true);
                     return;
                 }
 
@@ -282,7 +282,7 @@ public class EmojiCommands : BaseCommand
             {
                 if (!EmojiService.ValidatePointValue(points.Value))
                 {
-                    await RespondAsync("❌ Point value must be between 1 and 999.", ephemeral: true);
+                    await RespondAsync(GetLocalizedText("errors.point_value_range"), ephemeral: true);
                     return;
                 }
 
@@ -295,7 +295,7 @@ public class EmojiCommands : BaseCommand
 
             if (!hasChanges)
             {
-                await RespondAsync("❌ No changes specified. Provide at least one parameter to update.", ephemeral: true);
+                await RespondAsync(GetLocalizedText("errors.no_changes_specified_message"), ephemeral: true);
                 return;
             }
 
@@ -303,7 +303,7 @@ public class EmojiCommands : BaseCommand
 
             // Create success embed
             var embed = new EmbedProperties()
-                .WithTitle("✅ Emoji Updated Successfully")
+                .WithTitle(GetLocalizedText("errors.emoji_updated_success"))
                 .WithColor(new Color(0x0099ff))
                 .WithDescription($"Emoji {emoji} has been updated!");
 
@@ -336,7 +336,7 @@ public class EmojiCommands : BaseCommand
         }
         catch (Exception ex)
         {
-            await RespondAsync($"❌ Error editing emoji: {ex.Message}", ephemeral: true);
+            await RespondAsync(GetLocalizedText("errors.error_editing_emoji", ex.Message), ephemeral: true);
         }
     }
 } 

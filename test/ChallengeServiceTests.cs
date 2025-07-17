@@ -667,7 +667,7 @@ public class ChallengeServiceTests : IDisposable
         var method = typeof(ChallengeService).GetMethod("GetWeekNumberFromThreadName", 
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         var result = method?.Invoke(null, new object[] { threadName, semesterNumber });
-        
+
         // Assert
         result.ShouldNotBeNull();
         ((int)result).ShouldBe(expected);

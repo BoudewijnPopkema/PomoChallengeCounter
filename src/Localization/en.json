@@ -117,12 +117,23 @@
       "Ready to tackle some serious study time? Let's go! 💯"
     ]
   },
+  "setup": {
+    "success_description": "Bot has been configured and is ready to manage pomodoro challenges!",
+    "field_category": "Category",
+    "field_language": "Language", 
+    "field_config_role": "Config Role",
+    "field_ping_role": "Ping Role",
+    "none": "None"
+  },
   "errors": {
     "guild_only": "This command can only be used in a server",
     "admin_only": "This command requires administrator permissions",
     "config_permission_required": "You need the configured bot management role to use this command",
     "server_not_setup": "Server not configured yet. Run /setup first",
     "no_permission": "You don't have permission to use this command",
+    "insufficient_permissions": "You don't have sufficient permissions to use this command",
+    "user_not_found": "User not found",
+    "user_not_in_guild": "You are not a member of this server",
     "invalid_language": "Invalid language. Use 'en' for English or 'nl' for Dutch",
     "invalid_date": "Invalid date format. Use YYYY-MM-DD",
     "invalid_emoji": "Invalid emoji format",
@@ -143,6 +154,27 @@
     "week_already_exists": "Week {0} already exists for this challenge",
     "category_not_configured": "No category configured. Run /setup first",
     "ping_role_not_configured": "No ping role configured. Use /config roles to set one",
-    "week_not_found": "Week {0} not found for this challenge"
+    "week_not_found": "Week {0} not found for this challenge",
+    "failed_to_create_thread": "❌ Failed to create thread: {0}",
+    "error_creating_thread": "❌ Error creating thread: {0}",
+    "error_pinging_role": "Error pinging role: {0}",
+    "setup_error": "Setup error: {0}",
+    "invalid_emoji_format": "❌ Invalid emoji format. Please use a valid Discord emoji, shortcode (:like_this:), or Unicode emoji.",
+    "point_value_range": "❌ Point value must be between 1 and 999.",
+    "invalid_emoji_type_message": "❌ Invalid emoji type. Valid types: {0}",
+    "challenge_not_found_simple": "❌ Challenge not found.",
+    "emoji_already_configured": "❌ This emoji (or its equivalent) is already configured for this server/challenge.",
+    "emoji_added_success": "✅ Emoji Added Successfully",
+    "error_adding_emoji": "❌ Error adding emoji: {0}",
+    "error_listing_emojis": "Error listing emojis: {0}",
+    "emoji_not_found_or_removed": "❌ Emoji not found or already removed.",
+    "emoji_removed_success": "✅ Emoji Removed Successfully",
+    "error_removing_emoji": "❌ Error removing emoji: {0}",
+    "emoji_not_found_simple": "❌ Emoji not found.",
+    "no_changes_specified_message": "❌ No changes specified. Provide at least one parameter to update.",
+    "emoji_updated_success": "✅ Emoji Updated Successfully",
+    "error_editing_emoji": "❌ Error editing emoji: {0}",
+    "config_category_error": "Config category error: {0}",
+    "server_setup_complete": "✅ Server Setup Complete"
   }
 } 

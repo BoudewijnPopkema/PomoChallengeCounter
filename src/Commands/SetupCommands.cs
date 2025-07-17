@@ -51,7 +51,7 @@ public class SetupCommands : BaseCommand
             await DbContext.SaveChangesAsync();
 
             var embed = new EmbedProperties()
-                .WithTitle("✅ Server Setup Complete")
+                .WithTitle(GetLocalizedText("errors.server_setup_complete"))
                 .WithColor(new Color(0x00ff00))
                 .WithDescription(GetLocalizedText("setup.success_description"))
                 .AddFields(
@@ -80,7 +80,7 @@ public class SetupCommands : BaseCommand
         }
         catch (Exception ex)
         {
-            await RespondAsync($"Setup error: {ex.Message}", ephemeral: true);
+            await RespondAsync(GetLocalizedText("errors.setup_error", ex.Message), ephemeral: true);
         }
     }
 } 

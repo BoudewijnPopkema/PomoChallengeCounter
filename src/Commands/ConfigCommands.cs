@@ -28,7 +28,7 @@ public class ConfigCommands : BaseCommand
         }
         catch (Exception ex)
         {
-            await RespondAsync($"Config category error: {ex.Message}", ephemeral: true);
+            await RespondAsync(GetLocalizedText("errors.config_category_error", ex.Message), ephemeral: true);
         }
     }
 

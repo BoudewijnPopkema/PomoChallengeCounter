@@ -117,12 +117,23 @@
       "Klaar voor een week vol studeren? Laten we knallen! 💯"
     ]
   },
+  "setup": {
+    "success_description": "Bot is geconfigureerd en klaar om pomodoro challenges te beheren!",
+    "field_category": "Categorie",
+    "field_language": "Taal", 
+    "field_config_role": "Config Rol",
+    "field_ping_role": "Ping Rol",
+    "none": "Geen"
+  },
   "errors": {
     "guild_only": "Deze command kan alleen gebruikt worden in een server",
     "admin_only": "Deze command vereist administrator permissies",
     "config_permission_required": "Je hebt de geconfigureerde bot management rol nodig om deze command te gebruiken",
     "server_not_setup": "Server nog niet geconfigureerd. Voer eerst /setup uit",
     "no_permission": "Je hebt geen toestemming om deze command te gebruiken",
+    "insufficient_permissions": "Je hebt onvoldoende permissies om deze command te gebruiken",
+    "user_not_found": "Gebruiker niet gevonden",
+    "user_not_in_guild": "Je bent geen lid van deze server",
     "invalid_language": "Ongeldige taal. Gebruik 'en' voor Engels of 'nl' voor Nederlands",
     "invalid_date": "Ongeldig datum formaat. Gebruik YYYY-MM-DD",
     "invalid_emoji": "Ongeldig emoji formaat",
@@ -143,6 +154,27 @@
     "week_already_exists": "Week {0} bestaat al voor deze challenge",
     "category_not_configured": "Geen categorie geconfigureerd. Voer eerst /setup uit",
     "ping_role_not_configured": "Geen ping rol geconfigureerd. Gebruik /config roles om er een in te stellen",
-    "week_not_found": "Week {0} niet gevonden voor deze challenge"
+    "week_not_found": "Week {0} niet gevonden voor deze challenge",
+    "failed_to_create_thread": "❌ Thread aanmaken gefaald: {0}",
+    "error_creating_thread": "❌ Fout bij aanmaken thread: {0}",
+    "error_pinging_role": "Fout bij pingen rol: {0}",
+    "setup_error": "Setup fout: {0}",
+    "invalid_emoji_format": "❌ Ongeldig emoji formaat. Gebruik een geldige Discord emoji, shortcode (:zoals_dit:), of Unicode emoji.",
+    "point_value_range": "❌ Punt waarde moet tussen 1 en 999 zijn.",
+    "invalid_emoji_type_message": "❌ Ongeldig emoji type. Geldige types: {0}",
+    "challenge_not_found_simple": "❌ Challenge niet gevonden.",
+    "emoji_already_configured": "❌ Deze emoji (of equivalent) is al geconfigureerd voor deze server/challenge.",
+    "emoji_added_success": "✅ Emoji Succesvol Toegevoegd",
+    "error_adding_emoji": "❌ Fout bij toevoegen emoji: {0}",
+    "error_listing_emojis": "Fout bij tonen emojis: {0}",
+    "emoji_not_found_or_removed": "❌ Emoji niet gevonden of al verwijderd.",
+    "emoji_removed_success": "✅ Emoji Succesvol Verwijderd",
+    "error_removing_emoji": "❌ Fout bij verwijderen emoji: {0}",
+    "emoji_not_found_simple": "❌ Emoji niet gevonden.",
+    "no_changes_specified_message": "❌ Geen wijzigingen opgegeven. Geef tenminste één parameter op om te updaten.",
+    "emoji_updated_success": "✅ Emoji Succesvol Geüpdatet",
+    "error_editing_emoji": "❌ Fout bij bewerken emoji: {0}",
+    "config_category_error": "Config categorie fout: {0}",
+    "server_setup_complete": "✅ Server Setup Voltooid"
   }
 } 
