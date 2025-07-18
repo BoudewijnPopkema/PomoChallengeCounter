@@ -16,12 +16,15 @@ public class ChallengeService(
     IServiceProvider serviceProvider,
     ILogger<ChallengeService> logger) : IChallengeService
 {
-    public async Task<ChallengeOperationResult> CreateChallengeAsync(ulong serverId, int semesterNumber, string theme, DateOnly startDate, DateOnly endDate, int weekCount)
+    public async Task<ChallengeOperationResult> CreateChallengeAsync(ulong serverId, int semesterNumber, string theme, DateOnly startDate, DateOnly endDate)
     {
         try
         {
+            // Calculate week count from dates
+            var weekCount = CalculateWeekCount(startDate, endDate);
+            
             // Validate parameters first
-            var validation = ValidateChallengeParameters(semesterNumber, theme, startDate, endDate, weekCount);
+            var validation = ValidateChallengeParameters(semesterNumber, theme, startDate, endDate);
             if (!validation.IsValid)
             {
                 logger.LogWarning("Challenge creation failed validation for server {ServerId}: {Errors}",
@@ -218,9 +221,12 @@ public class ChallengeService(
             .ToListAsync();
     }
 
-    public ChallengeValidationResult ValidateChallengeParameters(int semesterNumber, string theme, DateOnly startDate, DateOnly endDate, int weekCount)
+    public ChallengeValidationResult ValidateChallengeParameters(int semesterNumber, string theme, DateOnly startDate, DateOnly endDate)
     {
         var result = new ChallengeValidationResult { IsValid = true };
+
+        // Calculate week count from dates
+        var weekCount = CalculateWeekCount(startDate, endDate);
 
         // Validate semester number
         if (semesterNumber < 1 || semesterNumber > 5)
@@ -256,17 +262,7 @@ public class ChallengeService(
             result.AddError("End date must be after start date");
         }
 
-        // Validate week count matches date range
-        if (startDate.DayOfWeek == DayOfWeek.Monday && endDate.DayOfWeek == DayOfWeek.Sunday)
-        {
-            var daysDifference = endDate.DayNumber - startDate.DayNumber + 1;
-            var expectedWeeks = daysDifference / 7;
-            
-            if (weekCount != expectedWeeks)
-            {
-                result.AddError($"Week count ({weekCount}) does not match date range ({expectedWeeks} weeks from {startDate:yyyy-MM-dd} to {endDate:yyyy-MM-dd})");
-            }
-        }
+        // Week count is calculated automatically from dates, so no mismatch validation needed
 
         // Validate minimum duration
         if (weekCount < 1)
@@ -288,6 +284,18 @@ public class ChallengeService(
         }
 
         return result;
+    }
+
+    private static int CalculateWeekCount(DateOnly startDate, DateOnly endDate)
+    {
+        if (startDate.DayOfWeek != DayOfWeek.Monday || endDate.DayOfWeek != DayOfWeek.Sunday)
+        {
+            // For validation purposes, still calculate but validation will catch the day-of-week errors
+            return Math.Max(1, (endDate.DayNumber - startDate.DayNumber + 1) / 7);
+        }
+        
+        var daysDifference = endDate.DayNumber - startDate.DayNumber + 1;
+        return daysDifference / 7;
     }
 
     private async Task CreateInitialWeeksAsync(Challenge challenge)
@@ -348,7 +356,7 @@ public class ChallengeService(
             var weekCount = threadScanResult.Max(t => t.WeekNumber);
 
             // 3. Validate challenge parameters
-            var validation = ValidateChallengeParameters(semesterNumber, theme, dateRange.startDate.Value, dateRange.endDate.Value, weekCount);
+            var validation = ValidateChallengeParameters(semesterNumber, theme, dateRange.startDate.Value, dateRange.endDate.Value);
             if (!validation.IsValid)
             {
                 result.ErrorMessage = $"Challenge validation failed: {string.Join(", ", validation.Errors)}";

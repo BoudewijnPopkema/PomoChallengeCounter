@@ -13,6 +13,11 @@ public interface IDiscordThreadService
     Task<DiscordThreadResult> CreateThreadAsync(ulong serverId, ulong categoryId, string threadName, int weekNumber, string? welcomeMessage = null, ulong? pingRoleId = null);
     
     /// <summary>
+    /// Create a new thread for a specific challenge, creating the challenge channel if needed
+    /// </summary>
+    Task<DiscordThreadResult> CreateChallengeThreadAsync(ulong serverId, ulong categoryId, string threadName, int weekNumber, string challengeTheme, int semesterNumber, string? welcomeMessage = null, ulong? pingRoleId = null);
+    
+    /// <summary>
     /// Find a suitable channel for thread creation in a category
     /// </summary>
     Task<DiscordChannelResult> FindChannelForChallengeAsync(ulong serverId, ulong categoryId, string challengeTheme, int semesterNumber);

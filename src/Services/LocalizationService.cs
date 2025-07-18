@@ -71,13 +71,23 @@ public class LocalizationService(ILogger<LocalizationService> logger) : ILocaliz
 
         foreach (var keyPart in keys)
         {
-            if (current is Dictionary<string, object> currentDict && currentDict.TryGetValue(keyPart, out var next))
+            switch (current)
             {
-                current = next;
-            }
-            else
-            {
-                return false;
+                case Dictionary<string, object> currentDict when currentDict.TryGetValue(keyPart, out var next):
+                    current = next;
+                    break;
+                case JsonElement { ValueKind: JsonValueKind.Object } jsonElement:
+                    if (jsonElement.TryGetProperty(keyPart, out var jsonProperty))
+                    {
+                        current = jsonProperty;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                    break;
+                default:
+                    return false;
             }
         }
 
@@ -98,6 +108,8 @@ public class LocalizationService(ILogger<LocalizationService> logger) : ILocaliz
     {
         var resourceName = $"PomoChallengeCounter.Localization.{language}.json";
         var assembly = typeof(LocalizationService).Assembly;
+        
+
         
         await using var stream = assembly.GetManifestResourceStream(resourceName);
         if (stream == null)

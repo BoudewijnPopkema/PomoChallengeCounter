@@ -71,8 +71,19 @@ public class ThreadCommands(
 
             await DeferAsync(); // Thread creation might take a moment
 
-            // Create thread name
-            var threadName = $"Q{challenge.SemesterNumber}-week{weekNumber}";
+            // Create thread name with proper goal suffix for week 0
+            string threadName;
+            if (weekNumber == 0)
+            {
+                // Week 0 is for goal setting - use localized "inzet" pattern
+                var goalThreadSuffix = server.Language == "nl" ? "inzet" : "goals";
+                threadName = $"Q{challenge.SemesterNumber}-{goalThreadSuffix}";
+            }
+            else
+            {
+                // Regular week threads
+                threadName = $"Q{challenge.SemesterNumber}-week{weekNumber}";
+            }
             
             // Create welcome message
             var welcomeMessages = GetLocalizedText("responses.welcome_messages").Split('\n');

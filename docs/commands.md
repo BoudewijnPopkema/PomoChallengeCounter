@@ -50,12 +50,14 @@
 - `theme`: Challenge theme name
 - `start_date`: Challenge start date (YYYY-MM-DD, must be Monday)
 - `end_date`: Challenge end date (YYYY-MM-DD, must be Sunday)
-- `weeks`: Number of weeks (must match date range)
+
+**Note**: Week count is calculated automatically from the date range.
 
 **Example**:
 ```
-/challenge create semester:3 theme:"Space Exploration" start_date:2024-01-08 end_date:2024-03-31 weeks:12
+/challenge create semester:3 theme:"Space Exploration" start_date:2024-01-08 end_date:2024-03-31
 ```
+This will automatically calculate 12 weeks from the date range.
 
 ### `/challenge start`
 **Permission**: Admin/Config  

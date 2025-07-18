@@ -106,16 +106,7 @@
     },
     "goal_achieved": "🎯 Inzet behaald!",
     "thread_created": "Thread '{0}' succesvol aangemaakt: {1}",
-    "welcome_messages": [
-      "Nieuwe week, tijd om te studeren! Laten we dit doen 🍅",
-      "Week {0} is begonnen - tijd om te blokken! 💪",
-      "Fresh week vibes! Op naar die studiesessies 🔥",
-      "Nieuwe week, nieuwe kansen om te leren! ✨",
-      "Laten we deze week weer lekker studeren! 🚀",
-      "Time voor focus en kennis opdoen! ⚡",
-      "Nieuwe week = nieuwe leerstof! Let's go 🎯",
-      "Klaar voor een week vol studeren? Laten we knallen! 💯"
-    ]
+    "welcome_messages": "Nieuwe week, tijd om te studeren! Laten we dit doen 🍅\nWeek {0} is begonnen - tijd om te blokken! 💪\nFresh week vibes! Op naar die studiesessies 🔥\nNieuwe week, nieuwe kansen om te leren! ✨\nLaten we deze week weer lekker studeren! 🚀\nTime voor focus en kennis opdoen! ⚡\nNieuwe week = nieuwe leerstof! Let's go 🎯\nKlaar voor een week vol studeren? Laten we knallen! 💯"
   },
   "setup": {
     "success_description": "Bot is geconfigureerd en klaar om pomodoro challenges te beheren!",

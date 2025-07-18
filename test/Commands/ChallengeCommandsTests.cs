@@ -59,10 +59,9 @@ public class ChallengeCommandsTests : IDisposable
         var theme = "Space Exploration";
         var startDate = new DateOnly(2024, 1, 8); // Monday
         var endDate = new DateOnly(2024, 3, 31);   // Sunday
-        var weeks = 12;
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(12345, semester, theme, startDate, endDate, weeks);
+        var result = await _challengeService.CreateChallengeAsync(12345, semester, theme, startDate, endDate);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
@@ -71,7 +70,7 @@ public class ChallengeCommandsTests : IDisposable
         result.Challenge.Theme.ShouldBe(theme);
         result.Challenge.StartDate.ShouldBe(startDate);
         result.Challenge.EndDate.ShouldBe(endDate);
-        result.Challenge.WeekCount.ShouldBe(weeks);
+        result.Challenge.WeekCount.ShouldBe(12);
         result.Challenge.IsStarted.ShouldBeFalse();
         result.Challenge.IsActive.ShouldBeFalse();
     }
@@ -85,10 +84,9 @@ public class ChallengeCommandsTests : IDisposable
         var theme = "Test Theme";
         var startDate = new DateOnly(2024, 1, 9); // Tuesday (should be Monday)
         var endDate = new DateOnly(2024, 3, 30);   // Saturday (should be Sunday)
-        var weeks = 12;
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(12345, semester, theme, startDate, endDate, weeks);
+        var result = await _challengeService.CreateChallengeAsync(12345, semester, theme, startDate, endDate);
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -97,7 +95,7 @@ public class ChallengeCommandsTests : IDisposable
     }
 
     [Fact]
-    public async Task ChallengeService_CreateChallenge_ShouldFailWithMismatchedWeekCount()
+    public async Task ChallengeService_CreateChallenge_ShouldCalculateWeekCountAutomatically()
     {
         // Arrange
         await CreateTestServerAsync();
@@ -105,14 +103,14 @@ public class ChallengeCommandsTests : IDisposable
         var theme = "Test Theme";
         var startDate = new DateOnly(2024, 1, 8); // Monday
         var endDate = new DateOnly(2024, 3, 31);   // Sunday
-        var weeks = 15; // Wrong! Should be 12 weeks
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(12345, semester, theme, startDate, endDate, weeks);
+        var result = await _challengeService.CreateChallengeAsync(12345, semester, theme, startDate, endDate);
 
         // Assert
-        result.IsSuccess.ShouldBeFalse();
-        result.ErrorMessage.ShouldContain("Week count (15) does not match date range (12 weeks");
+        result.IsSuccess.ShouldBeTrue();
+        result.Challenge.ShouldNotBeNull();
+        result.Challenge.WeekCount.ShouldBe(12); // Should be calculated automatically from dates
     }
 
     [Fact]
@@ -122,7 +120,7 @@ public class ChallengeCommandsTests : IDisposable
         await CreateTestServerAsync();
         var createResult = await _challengeService.CreateChallengeAsync(
             12345, 3, "Test Theme", 
-            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31), 12);
+            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31));
         createResult.IsSuccess.ShouldBeTrue();
 
         // Act
@@ -151,7 +149,7 @@ public class ChallengeCommandsTests : IDisposable
         await CreateTestServerAsync();
         var createResult = await _challengeService.CreateChallengeAsync(
             12345, 3, "Test Theme", 
-            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31), 12);
+            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31));
         await _challengeService.StartChallengeAsync(createResult.Challenge!.Id);
 
         // Act
@@ -169,7 +167,7 @@ public class ChallengeCommandsTests : IDisposable
         await CreateTestServerAsync();
         var createResult = await _challengeService.CreateChallengeAsync(
             12345, 3, "Test Theme", 
-            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31), 12);
+            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31));
         await _challengeService.StartChallengeAsync(createResult.Challenge!.Id);
 
         // Act
@@ -190,7 +188,7 @@ public class ChallengeCommandsTests : IDisposable
         await CreateTestServerAsync();
         var createResult = await _challengeService.CreateChallengeAsync(
             12345, 3, "Test Theme", 
-            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31), 12);
+            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31));
         await _challengeService.StartChallengeAsync(createResult.Challenge!.Id);
 
         // Act
@@ -210,12 +208,12 @@ public class ChallengeCommandsTests : IDisposable
         await CreateTestServerAsync();
         await _challengeService.CreateChallengeAsync(
             12345, 3, "First Theme", 
-            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31), 12);
+            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31));
 
         // Act
         var secondResult = await _challengeService.CreateChallengeAsync(
             12345, 3, "Second Theme", 
-            new DateOnly(2024, 4, 8), new DateOnly(2024, 6, 30), 12);
+            new DateOnly(2024, 4, 8), new DateOnly(2024, 6, 30));
 
         // Assert
         secondResult.IsSuccess.ShouldBeFalse();
@@ -233,7 +231,7 @@ public class ChallengeCommandsTests : IDisposable
         // Act
         var result = await _challengeService.CreateChallengeAsync(
             12345, semester, "Test Theme", 
-            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31), 12);
+            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31));
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -252,7 +250,7 @@ public class ChallengeCommandsTests : IDisposable
         // Act
         var result = await _challengeService.CreateChallengeAsync(
             12345, 3, theme, 
-            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31), 12);
+            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31));
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -266,7 +264,7 @@ public class ChallengeCommandsTests : IDisposable
         await CreateTestServerAsync();
         var createResult = await _challengeService.CreateChallengeAsync(
             12345, 3, "Test Theme", 
-            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31), 12);
+            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31));
         await _challengeService.StartChallengeAsync(createResult.Challenge!.Id);
 
         // Act
@@ -285,10 +283,10 @@ public class ChallengeCommandsTests : IDisposable
         await CreateTestServerAsync();
         await _challengeService.CreateChallengeAsync(
             12345, 1, "Theme 1", 
-            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31), 12);
+            new DateOnly(2024, 1, 8), new DateOnly(2024, 3, 31));
         await _challengeService.CreateChallengeAsync(
             12345, 2, "Theme 2", 
-            new DateOnly(2024, 4, 8), new DateOnly(2024, 6, 30), 12);
+            new DateOnly(2024, 4, 8), new DateOnly(2024, 6, 30));
 
         // Act
         var challenges = await _challengeService.GetServerChallengesAsync(12345);

@@ -31,8 +31,7 @@ public class ChallengeCommands(
         [SlashCommandParameter(Name = "semester", Description = "Semester number")] int semester,
         [SlashCommandParameter(Name = "theme", Description = "Challenge theme name")] string theme,
         [SlashCommandParameter(Name = "start_date", Description = "Start date (YYYY-MM-DD)")] string startDate,
-        [SlashCommandParameter(Name = "end_date", Description = "End date (YYYY-MM-DD)")] string endDate,
-        [SlashCommandParameter(Name = "weeks", Description = "Number of weeks")] int weeks)
+        [SlashCommandParameter(Name = "end_date", Description = "End date (YYYY-MM-DD)")] string endDate)
     {
         if (!await CheckPermissionsAsync(PermissionLevel.Config))
             return;
@@ -60,14 +59,13 @@ public class ChallengeCommands(
                 return;
             }
 
-            // Create challenge using service
+            // Create challenge using service (weeks calculated automatically)
             var result = await challengeService.CreateChallengeAsync(
                 Context.Guild.Id, 
                 semester, 
                 theme, 
                 parsedStartDate, 
-                parsedEndDate, 
-                weeks);
+                parsedEndDate);
 
             if (result.IsSuccess && result.Challenge != null)
             {
@@ -113,8 +111,8 @@ public class ChallengeCommands(
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error creating challenge for guild {GuildId} - Semester: {Semester}, Theme: {Theme}, StartDate: {StartDate}, EndDate: {EndDate}, Weeks: {Weeks}", 
-                Context.Guild.Id, semester, theme, startDate, endDate, weeks);
+            Logger.LogError(ex, "Error creating challenge for guild {GuildId} - Semester: {Semester}, Theme: {Theme}, StartDate: {StartDate}, EndDate: {EndDate}", 
+                Context.Guild.Id, semester, theme, startDate, endDate);
             await RespondAsync($"❌ Error creating challenge: {ex.Message}", ephemeral: true);
         }
     }

@@ -65,7 +65,7 @@ public class ChallengeServiceTests : IDisposable
         var weekCount = 12;
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, semesterNumber, theme, startDate, endDate, weekCount);
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, semesterNumber, theme, startDate, endDate);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
@@ -97,7 +97,7 @@ public class ChallengeServiceTests : IDisposable
         var weekCount = 12;
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, semesterNumber, theme, startDate, endDate, weekCount);
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, semesterNumber, theme, startDate, endDate);
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -111,7 +111,7 @@ public class ChallengeServiceTests : IDisposable
         var startDate = new DateOnly(2024, 3, 19); // Tuesday, not Monday
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "Theme", startDate, new DateOnly(2024, 6, 9), 12);
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "Theme", startDate, new DateOnly(2024, 6, 9));
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -125,27 +125,11 @@ public class ChallengeServiceTests : IDisposable
         var endDate = new DateOnly(2024, 6, 10); // Monday, not Sunday
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "Theme", new DateOnly(2024, 3, 18), endDate, 12);
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "Theme", new DateOnly(2024, 3, 18), endDate);
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
         result.ErrorMessage.ShouldContain("End date must be a Sunday");
-    }
-
-    [Fact]
-    public async Task CreateChallengeAsync_WithMismatchedWeekCount_ShouldFail()
-    {
-        // Arrange
-        var startDate = new DateOnly(2024, 3, 18); // Monday
-        var endDate = new DateOnly(2024, 6, 9); // Sunday - actually 12 weeks
-        var weekCount = 10; // Wrong count
-
-        // Act
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "Theme", startDate, endDate, weekCount);
-
-        // Assert
-        result.IsSuccess.ShouldBeFalse();
-        result.ErrorMessage.ShouldContain("Week count (10) does not match date range (12 weeks");
     }
 
     [Fact]
@@ -155,7 +139,7 @@ public class ChallengeServiceTests : IDisposable
         var pastDate = new DateOnly(2024, 3, 4); // Past Monday
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "Theme", pastDate, new DateOnly(2024, 6, 9), 14);
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "Theme", pastDate, new DateOnly(2024, 6, 9));
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -179,7 +163,7 @@ public class ChallengeServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "New Challenge", new DateOnly(2024, 9, 2), new DateOnly(2024, 12, 22), 16);
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "New Challenge", new DateOnly(2024, 9, 2), new DateOnly(2024, 12, 22));
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -190,7 +174,7 @@ public class ChallengeServiceTests : IDisposable
     public async Task CreateChallengeAsync_WithNonExistentServer_ShouldFail()
     {
         // Act
-        var result = await _challengeService.CreateChallengeAsync(999999, 3, "Theme", new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9), 12);
+        var result = await _challengeService.CreateChallengeAsync(999999, 3, "Theme", new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9));
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -204,7 +188,7 @@ public class ChallengeServiceTests : IDisposable
     public async Task CreateChallengeAsync_WithEmptyTheme_ShouldFail(string theme)
     {
         // Act
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, theme, new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9), 12);
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, theme, new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9));
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -218,7 +202,7 @@ public class ChallengeServiceTests : IDisposable
         var longTheme = new string('A', 256); // 256 characters
 
         // Act
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, longTheme, new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9), 12);
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, longTheme, new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9));
 
         // Assert
         result.IsSuccess.ShouldBeFalse();
@@ -536,7 +520,7 @@ public class ChallengeServiceTests : IDisposable
     public void ValidateChallengeParameters_WithInvalidSemester_ShouldReturnErrors(int semester)
     {
         // Act
-        var result = _challengeService.ValidateChallengeParameters(semester, "Theme", new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9), 12);
+        var result = _challengeService.ValidateChallengeParameters(semester, "Theme", new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9));
 
         // Assert
         result.IsValid.ShouldBeFalse();
@@ -552,7 +536,7 @@ public class ChallengeServiceTests : IDisposable
     public void ValidateChallengeParameters_WithValidSemester_ShouldNotHaveSemesterError(int semester)
     {
         // Act
-        var result = _challengeService.ValidateChallengeParameters(semester, "Theme", new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9), 12);
+        var result = _challengeService.ValidateChallengeParameters(semester, "Theme", new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9));
 
         // Assert
         result.Errors.ShouldNotContain(e => e.Contains("Semester number must be between 1-5"));
@@ -562,7 +546,7 @@ public class ChallengeServiceTests : IDisposable
     public void ValidateChallengeParameters_WithValidParameters_ShouldBeValid()
     {
         // Act
-        var result = _challengeService.ValidateChallengeParameters(3, "Space Exploration", new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9), 12);
+        var result = _challengeService.ValidateChallengeParameters(3, "Space Exploration", new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9));
 
         // Assert
         result.IsValid.ShouldBeTrue();
@@ -570,10 +554,14 @@ public class ChallengeServiceTests : IDisposable
     }
 
     [Fact]
-    public void ValidateChallengeParameters_WithTooLongWeekCount_ShouldReturnError()
+    public void ValidateChallengeParameters_WithTooLongDateRange_ShouldReturnError()
     {
+        // Arrange - Create a date range that would result in more than 52 weeks
+        var startDate = new DateOnly(2024, 1, 1); // Monday
+        var endDate = new DateOnly(2025, 1, 5);   // Sunday - 53 weeks later
+
         // Act
-        var result = _challengeService.ValidateChallengeParameters(3, "Theme", new DateOnly(2024, 3, 18), new DateOnly(2025, 3, 16), 53);
+        var result = _challengeService.ValidateChallengeParameters(3, "Theme", startDate, endDate);
 
         // Assert
         result.IsValid.ShouldBeFalse();
@@ -581,21 +569,41 @@ public class ChallengeServiceTests : IDisposable
     }
 
     [Fact]
-    public void ValidateChallengeParameters_WithZeroWeekCount_ShouldReturnError()
+    public void ValidateChallengeParameters_WithInvalidDateRange_ShouldReturnError()
     {
+        // Arrange - End date before start date
+        var startDate = new DateOnly(2024, 3, 18); // Monday
+        var endDate = new DateOnly(2024, 3, 17);   // Sunday before start
+
         // Act
-        var result = _challengeService.ValidateChallengeParameters(3, "Theme", new DateOnly(2024, 3, 18), new DateOnly(2024, 3, 24), 0);
+        var result = _challengeService.ValidateChallengeParameters(3, "Theme", startDate, endDate);
 
         // Assert
         result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.Contains("Challenge must be at least 1 week long"));
+        result.Errors.ShouldContain(e => e.Contains("End date must be after start date"));
+    }
+
+    [Fact]
+    public async Task CreateChallengeAsync_ShouldCalculateWeekCountFromDates()
+    {
+        // Arrange
+        var startDate = new DateOnly(2024, 3, 18); // Monday
+        var endDate = new DateOnly(2024, 6, 9); // Sunday - should be 12 weeks
+
+        // Act
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, "Theme", startDate, endDate);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+        result.Challenge.ShouldNotBeNull();
+        result.Challenge.WeekCount.ShouldBe(12); // Should be calculated automatically
     }
 
     [Fact]
     public async Task CreateChallenge_WithInvalidTheme_ShouldFail()
     {
         // Test with null theme to trigger validation
-        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, null!, new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9), 12);
+        var result = await _challengeService.CreateChallengeAsync(_testServer.Id, 3, null!, new DateOnly(2024, 3, 18), new DateOnly(2024, 6, 9));
 
         result.IsSuccess.ShouldBeFalse();
         result.ErrorMessage.ShouldContain("Theme is required");

@@ -25,8 +25,7 @@ This document describes the complete workflow for running a pomodoro challenge f
    - Theme name
    - Start date (Monday)
    - End date (Sunday)
-   - Week count
-2. **Validation**: Bot validates dates and week count
+2. **Validation**: Bot validates dates and calculates week count automatically
 3. **Channel Creation**: Bot creates challenge channel in designated category
 4. **Database Setup**: Challenge and week records created
 

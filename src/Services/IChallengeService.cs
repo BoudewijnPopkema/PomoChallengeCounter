@@ -11,7 +11,7 @@ public interface IChallengeService
     /// <summary>
     /// Create a new challenge for a server
     /// </summary>
-    Task<ChallengeOperationResult> CreateChallengeAsync(ulong serverId, int semesterNumber, string theme, DateOnly startDate, DateOnly endDate, int weekCount);
+    Task<ChallengeOperationResult> CreateChallengeAsync(ulong serverId, int semesterNumber, string theme, DateOnly startDate, DateOnly endDate);
     
     /// <summary>
     /// Start an existing challenge (creates initial threads and activates tracking)
@@ -44,9 +44,9 @@ public interface IChallengeService
     Task<List<Challenge>> GetServerChallengesAsync(ulong serverId);
     
     /// <summary>
-    /// Validate challenge parameters before creation
+    /// Validate challenge parameters (week count calculated automatically)
     /// </summary>
-    ChallengeValidationResult ValidateChallengeParameters(int semesterNumber, string theme, DateOnly startDate, DateOnly endDate, int weekCount);
+    ChallengeValidationResult ValidateChallengeParameters(int semesterNumber, string theme, DateOnly startDate, DateOnly endDate);
     
     /// <summary>
     /// Import an existing challenge from a Discord channel by scanning for threads and processing historical messages

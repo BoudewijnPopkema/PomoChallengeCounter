@@ -65,7 +65,7 @@ Current manual process of copying Discord chat to Java application for pomodoro 
 
 ### Data Validation
 - **Date validation**: Challenge dates must be valid
-- **Week calculation**: Ensure week count matches date range
+- **Week calculation**: Week count calculated automatically from date range
 - **Emoji validation**: Verify emoji existence and permissions
 
 ## Non-Functional Requirements

@@ -141,7 +141,7 @@ Database uses PostgreSQL enum: `EmojiTypeEnum` (defined in database schema)
 ### Challenge Validation
 - **Start Date**: Must be Monday (`startDate.DayOfWeek == DayOfWeek.Monday`)
 - **End Date**: Must be Sunday (`endDate.DayOfWeek == DayOfWeek.Sunday`)
-- **Week Count**: Must equal `(endDate - startDate).Days / 7 + 1`
+- **Week Count**: Calculated automatically from date range `(endDate - startDate).Days / 7`
 - **Semester**: Must be 1-5 (1-4: regular semesters, 5: summer semester)
 - **Theme**: 1-255 characters, no special characters
 
@@ -163,7 +163,7 @@ Database uses PostgreSQL enum: `EmojiTypeEnum` (defined in database schema)
 
 ### Command Errors
 - `INVALID_DATE_FORMAT`: Date not in YYYY-MM-DD format
-- `INVALID_DATE_RANGE`: Start/end dates don't match week count
+- `INVALID_DATE_RANGE`: End date must be after start date
 - `INVALID_EMOJI_FORMAT`: Emoji doesn't match expected pattern
 - `INVALID_EMOJI_TYPE`: Emoji type not in enum (pomodoro, bonus, reward, goal)
 - `EMOJI_NOT_FOUND`: Custom emoji doesn't exist in server

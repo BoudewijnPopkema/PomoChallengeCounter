@@ -106,16 +106,7 @@
     },
     "goal_achieved": "🎯 Goal achieved!",
     "thread_created": "Thread '{0}' created successfully: {1}",
-    "welcome_messages": [
-      "It's a new week, let's get studying! 🍅",
-      "Fresh week, time to hit the books! 💪",
-      "New week = new study goals! Let's crush them 🔥",
-      "Week {0} is here - time to ace those study sessions! ✨",
-      "Another week, another chance to master that material! 🚀",
-      "Time to turn those study sessions into pomodoro power! ⚡",
-      "New week vibes - let's make studying fun! 🎯",
-      "Ready to tackle some serious study time? Let's go! 💯"
-    ]
+    "welcome_messages": "It's a new week, let's get studying! 🍅\nFresh week, time to hit the books! 💪\nNew week = new study goals! Let's crush them 🔥\nWeek {0} is here - time to ace those study sessions! ✨\nAnother week, another chance to master that material! 🚀\nTime to turn those study sessions into pomodoro power! ⚡\nNew week vibes - let's make studying fun! 🎯\nReady to tackle some serious study time? Let's go! 💯"
   },
   "setup": {
     "success_description": "Bot has been configured and is ready to manage pomodoro challenges!",

@@ -13,11 +13,11 @@
   - **Semesters 1-4**: Regular academic semesters
   - **Semester 5**: Summer semester
   - **Thread Format**: Q[semester]-week[N] (e.g., Q3-week1, Q5-week3)
-- **Flexible Duration**: Configurable week count with date validation
+- **Flexible Duration**: Week count calculated automatically from date range with validation
 - **State Management**: Create → Start → Active → Complete lifecycle
 - **Import Capability**: Retroactively import existing challenges from Discord
 - **Deactivation Option**: Deactivate challenge without deleting Discord content
-- **Validation**: Start/end dates must be Monday/Sunday, week count must match
+- **Validation**: Start/end dates must be Monday/Sunday, week count calculated automatically
 
 ### 3. Automated Thread System
 - **Weekly Threads**: Auto-created every Monday (format: Q[semester]-week[N], e.g., Q3-week2)

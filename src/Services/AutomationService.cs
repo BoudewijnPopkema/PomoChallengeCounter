@@ -122,37 +122,9 @@ public class AutomationService(
         logger.LogInformation("Creating weekly thread for challenge {ChallengeId}, week {WeekNumber}", 
             challenge.Id, currentWeekNumber);
 
-        // Create the weekly thread
-        // Note: This would need to integrate with Discord thread creation
-        // For now, we'll create the week record and mark it as needing a thread
+        // Create the weekly thread (CreateDiscordThreadAsync will handle week record creation)
         try
         {
-            if (existingWeek == null)
-            {
-                // Create new week record
-                var week = new Week
-                {
-                    ChallengeId = challenge.Id,
-                    WeekNumber = currentWeekNumber,
-                    ThreadId = 0, // Will be set when actual Discord thread is created
-                    LeaderboardPosted = false
-                };
-
-                using var scope = serviceProvider.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<PomoChallengeDbContext>();
-                await context.Weeks.AddAsync(week);
-                await context.SaveChangesAsync();
-
-                logger.LogInformation("Created week {WeekNumber} record for challenge {ChallengeId} - Discord thread creation pending", 
-                    currentWeekNumber, challenge.Id);
-            }
-            else
-            {
-                logger.LogInformation("Week {WeekNumber} record exists but needs Discord thread creation for challenge {ChallengeId}", 
-                    currentWeekNumber, challenge.Id);
-            }
-
-            // Create actual Discord thread
             await CreateDiscordThreadAsync(challenge, currentWeekNumber, existingWeek);
         }
         catch (Exception ex)
@@ -166,26 +138,12 @@ public class AutomationService(
     {
         try
         {
-            // Get the Discord guild
-            var guild = await gatewayClient.Rest.GetGuildAsync(challenge.ServerId);
-
             logger.LogInformation("Creating Discord thread for challenge {ChallengeId}, week {WeekNumber}", challenge.Id, weekNumber);
 
-            // Get guild channels to find the challenge channel
-            var channels = await guild.GetChannelsAsync();
-            
-            // Find the challenge channel by name (look for challenge theme or Q# pattern)
-            var challengeChannel = channels.FirstOrDefault(c => 
-                c.Name.Contains(challenge.Theme.ToLowerInvariant().Replace(" ", "-")) ||
-                c.Name.Contains($"q{challenge.SemesterNumber}") ||
-                c.Name.Contains("challenge"));
-
-            if (challengeChannel == null)
+            // Validate that server has category configured
+            if (!challenge.Server.CategoryId.HasValue)
             {
-                logger.LogWarning("Could not find challenge channel for guild {ServerId}, challenge {ChallengeId}. Available channels: {Channels}",
-                    challenge.ServerId, challenge.Id, string.Join(", ", channels.Select(c => c.Name)));
-                    
-                // Create week record anyway for database consistency
+                logger.LogWarning("No category configured for server {ServerId}, cannot create thread", challenge.ServerId);
                 await CreateWeekRecord(challenge.Id, weekNumber, 0, existingWeek, weekNumber == 0);
                 return;
             }
@@ -204,53 +162,37 @@ public class AutomationService(
                 // Regular week threads
                 threadName = $"Q{challenge.SemesterNumber}-week{weekNumber}";
             }
+
+            // Use the DiscordThreadService to create challenge thread (will create channel if needed)
+            using var scope = serviceProvider.CreateScope();
+            var discordThreadService = scope.ServiceProvider.GetRequiredService<IDiscordThreadService>();
             
-            logger.LogInformation("Found challenge channel {ChannelName} ({ChannelId}), creating thread {ThreadName}",
-                challengeChannel.Name, challengeChannel.Id, threadName);
-
-            // Try to create the thread using NetCord
-            try
+            // Get welcome message
+            var welcomeMessage = GetRandomWelcomeMessage(challenge.Server.Language, weekNumber);
+            
+            // Create challenge thread using the proper service
+            var threadResult = await discordThreadService.CreateChallengeThreadAsync(
+                challenge.ServerId,
+                challenge.Server.CategoryId.Value,
+                threadName,
+                weekNumber,
+                challenge.Theme,
+                challenge.SemesterNumber,
+                welcomeMessage,
+                challenge.Server.PingRoleId);
+            
+            if (threadResult.IsSuccess)
             {
-                // Attempt to create an actual Discord thread
-                logger.LogInformation("Attempting to create Discord thread {ThreadName} in channel {ChannelName} ({ChannelId})",
-                    threadName, challengeChannel.Name, challengeChannel.Id);
-
-                // Create actual Discord thread using NetCord API
-                if (challengeChannel is TextGuildChannel textChannel)
-                {
-                    // Create thread with NetCord's CreateGuildThreadAsync - simplified for now
-                    var threadProperties = new GuildThreadProperties(threadName);
-                    
-                    var createdThread = await textChannel.CreateGuildThreadAsync(threadProperties);
-                    
-                    logger.LogInformation("Successfully created Discord thread {ThreadName} (ID: {ThreadId}) in channel {ChannelName}",
-                        threadName, createdThread.Id, challengeChannel.Name);
-                    
-                    // Create or update week record with actual thread ID
-                    await CreateWeekRecord(challenge.Id, weekNumber, createdThread.Id, existingWeek, weekNumber == 0);
-                    
-                    // Send welcome message to thread with role ping
-                    await SendThreadWelcomeMessageAsync(createdThread, challenge);
-                    
-                    logger.LogInformation("Thread created and welcome message sent for Q{SemesterNumber}-week{WeekNumber}",
-                        challenge.SemesterNumber, weekNumber);
-                }
-                else
-                {
-                    logger.LogWarning("Channel {ChannelName} is not a TextGuildChannel, cannot create thread", challengeChannel.Name);
-                    // Fallback to placeholder for non-text channels
-                    await CreateWeekRecord(challenge.Id, weekNumber, challengeChannel.Id, existingWeek, weekNumber == 0);
-                }
+                logger.LogInformation("Successfully created challenge thread {ThreadName} (ID: {ThreadId}) for Q{SemesterNumber}-week{WeekNumber}",
+                    threadName, threadResult.ThreadId, challenge.SemesterNumber, weekNumber);
                 
-                logger.LogInformation("Thread creation and setup completed for week {WeekNumber} in challenge {ChallengeId}", 
-                    weekNumber, challenge.Id);
+                // Create or update week record with actual thread ID
+                await CreateWeekRecord(challenge.Id, weekNumber, threadResult.ThreadId, existingWeek, weekNumber == 0);
             }
-            catch (Exception threadEx)
+            else
             {
-                logger.LogError(threadEx, "Failed to create Discord thread {ThreadName} in channel {ChannelName}: {Error}",
-                    threadName, challengeChannel.Name, threadEx.Message);
-                    
-                // Still create week record for database consistency
+                logger.LogError("Failed to create challenge thread {ThreadName}: {Error}", threadName, threadResult.ErrorMessage);
+                // Still create week record for database consistency, but with no thread ID
                 await CreateWeekRecord(challenge.Id, weekNumber, 0, existingWeek, weekNumber == 0);
             }
         }
@@ -555,11 +497,11 @@ public class AutomationService(
     {
         try
         {
-            // Get the welcome messages array from localization
-            var welcomeMessagesJson = localizationService.GetString("responses.welcome_messages", language);
+            // Get the welcome messages string from localization
+            var welcomeMessagesString = localizationService.GetString("responses.welcome_messages", language);
             
-            // Parse the JSON array (fallback to hardcoded messages if parsing fails)
-            var welcomeMessages = ParseWelcomeMessages(welcomeMessagesJson, language);
+            // Parse the newline-separated string (fallback to hardcoded messages if parsing fails)
+            var welcomeMessages = ParseWelcomeMessages(welcomeMessagesString, language);
             
             var random = new Random();
             var selectedMessage = welcomeMessages[random.Next(welcomeMessages.Length)];
@@ -578,50 +520,37 @@ public class AutomationService(
         }
     }
     
-    private string[] ParseWelcomeMessages(string welcomeMessagesJson, string language)
+    private string[] ParseWelcomeMessages(string welcomeMessagesString, string language)
     {
         // If we get the key back instead of actual messages, use fallback
-        if (welcomeMessagesJson == "responses.welcome_messages")
+        if (welcomeMessagesString == "responses.welcome_messages")
         {
-                     return language == "nl" ? 
-            new[] {
-                "Nieuwe week, tijd om te studeren! Laten we dit doen 🍅",
-                "Week {0} is begonnen - tijd om te blokken! 💪",
-                "Fresh week vibes! Op naar die studiesessies 🔥",
-                "Nieuwe week, nieuwe kansen om te leren! ✨",
-                "Laten we deze week weer lekker studeren! 🚀",
-                "Time voor focus en kennis opdoen! ⚡",
-                "Nieuwe week = nieuwe leerstof! Let's go 🎯",
-                "Klaar voor een week vol studeren? Laten we knallen! 💯"
-            } :
-            new[] {
-                "It's a new week, let's get studying! 🍅",
-                "Fresh week, time to hit the books! 💪",
-                "New week = new study goals! Let's crush them 🔥",
-                "Week {0} is here - time to ace those study sessions! ✨",
-                "Another week, another chance to master that material! 🚀",
-                "Time to turn those study sessions into pomodoro power! ⚡",
-                "New week vibes - let's make studying fun! 🎯",
-                "Ready to tackle some serious study time? Let's go! 💯"
-            };
+            return language == "nl" ? 
+                new[] {
+                    "Nieuwe week, tijd om te studeren! Laten we dit doen 🍅",
+                    "Week {0} is begonnen - tijd om te blokken! 💪",
+                    "Fresh week vibes! Op naar die studiesessies 🔥",
+                    "Nieuwe week, nieuwe kansen om te leren! ✨",
+                    "Laten we deze week weer lekker studeren! 🚀",
+                    "Time voor focus en kennis opdoen! ⚡",
+                    "Nieuwe week = nieuwe leerstof! Let's go 🎯",
+                    "Klaar voor een week vol studeren? Laten we knallen! 💯"
+                } :
+                new[] {
+                    "It's a new week, let's get studying! 🍅",
+                    "Fresh week, time to hit the books! 💪",
+                    "New week = new study goals! Let's crush them 🔥",
+                    "Week {0} is here - time to ace those study sessions! ✨",
+                    "Another week, another chance to master that material! 🚀",
+                    "Time to turn those study sessions into pomodoro power! ⚡",
+                    "New week vibes - let's make studying fun! 🎯",
+                    "Ready to tackle some serious study time? Let's go! 💯"
+                };
         }
         
-        // For now, return fallback since JSON parsing of arrays from localization is complex
-        return language == "nl" ? 
-            new[] {
-                "Nieuwe week, tijd om te studeren! Laten we dit doen 🍅",
-                "Week {0} is begonnen - tijd om te blokken! 💪",
-                "Fresh week vibes! Op naar die studiesessies 🔥",
-                "Nieuwe week, nieuwe kansen om te leren! ✨",
-                "Laten we deze week weer lekker studeren! 🚀"
-            } :
-            new[] {
-                "It's a new week, let's get studying! 🍅",
-                "Fresh week, time to hit the books! 💪",
-                "New week = new study goals! Let's crush them 🔥",
-                "Week {0} is here - time to ace those study sessions! ✨",
-                "Another week, another chance to master that material! 🚀"
-            };
+        // Parse newline-separated string from localization
+        var messages = welcomeMessagesString.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        return messages.Length > 0 ? messages : new[] { "New week, let's study! 🍅" };
     }
     
     private int GetCurrentWeekNumber(Challenge challenge)

@@ -44,6 +44,12 @@ public class MockDiscordThreadService : IDiscordThreadService
         return Task.FromResult(DiscordThreadResult.Success(threadId, threadName, messageSent));
     }
 
+    public Task<DiscordThreadResult> CreateChallengeThreadAsync(ulong serverId, ulong categoryId, string threadName, int weekNumber, string challengeTheme, int semesterNumber, string? welcomeMessage = null, ulong? pingRoleId = null)
+    {
+        // For testing, just delegate to the regular CreateThreadAsync method
+        return CreateThreadAsync(serverId, categoryId, threadName, weekNumber, welcomeMessage, pingRoleId);
+    }
+
     public Task<DiscordChannelResult> FindChannelForChallengeAsync(ulong serverId, ulong categoryId, string challengeTheme, int semesterNumber)
     {
         if (ShouldFailChannelSearch)

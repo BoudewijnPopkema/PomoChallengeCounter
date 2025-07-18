@@ -35,7 +35,10 @@ public class DiscordThreadService(
             }
 
             // Create thread properties
-            var threadProperties = new GuildThreadProperties(threadName);
+            var threadProperties = new GuildThreadProperties(threadName)
+            {
+                ChannelType = ChannelType.PublicGuildThread,
+            };
 
             // Create the actual Discord thread
             var createdThread = await textChannel.CreateGuildThreadAsync(threadProperties);
@@ -56,6 +59,63 @@ public class DiscordThreadService(
         {
             logger.LogError(ex, "Failed to create thread {ThreadName} for server {ServerId}", threadName, serverId);
             return DiscordThreadResult.Failure($"Thread creation failed: {ex.Message}");
+        }
+    }
+
+    public async Task<DiscordThreadResult> CreateChallengeThreadAsync(ulong serverId, ulong categoryId, string threadName, int weekNumber, string challengeTheme, int semesterNumber, string? welcomeMessage = null, ulong? pingRoleId = null)
+    {
+        try
+        {
+            logger.LogInformation("Creating challenge thread {ThreadName} for challenge Q{SemesterNumber} '{Theme}' in server {ServerId}", 
+                threadName, semesterNumber, challengeTheme, serverId);
+
+            // First try to find an existing challenge channel
+            var channelResult = await FindChannelForChallengeAsync(serverId, categoryId, challengeTheme, semesterNumber);
+            
+            // If no suitable channel found, create a new challenge channel
+            if (!channelResult.IsSuccess)
+            {
+                logger.LogInformation("No suitable channel found for challenge Q{SemesterNumber} '{Theme}', creating new channel", 
+                    semesterNumber, challengeTheme);
+                    
+                channelResult = await CreateChallengeChannelAsync(serverId, categoryId, challengeTheme, semesterNumber);
+                
+                if (!channelResult.IsSuccess)
+                {
+                    return DiscordThreadResult.Failure($"Failed to create challenge channel: {channelResult.ErrorMessage}");
+                }
+            }
+
+            // Get the channel for thread creation
+            var channel = await gatewayClient.Rest.GetChannelAsync(channelResult.ChannelId);
+            if (channel is not TextGuildChannel textChannel)
+            {
+                return DiscordThreadResult.Failure("Channel is not a text channel that supports threads");
+            }
+
+            // Create thread properties (public thread by default)
+            var threadProperties = new GuildThreadProperties(threadName);
+
+            // Create the actual Discord thread
+            var createdThread = await textChannel.CreateGuildThreadAsync(threadProperties);
+
+            logger.LogInformation("Successfully created challenge thread {ThreadName} (ID: {ThreadId}) in channel {ChannelName} for Q{SemesterNumber}",
+                threadName, createdThread.Id, textChannel.Name, semesterNumber);
+
+            // Send welcome message if provided
+            var messageSent = false;
+            if (!string.IsNullOrEmpty(welcomeMessage))
+            {
+                messageSent = await SendMessageToThreadAsync(createdThread.Id, welcomeMessage, pingRoleId);
+            }
+
+            return DiscordThreadResult.Success(createdThread.Id, threadName, messageSent);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create challenge thread {ThreadName} for Q{SemesterNumber} '{Theme}' in server {ServerId}", 
+                threadName, semesterNumber, challengeTheme, serverId);
+            return DiscordThreadResult.Failure($"Challenge thread creation failed: {ex.Message}");
         }
     }
 

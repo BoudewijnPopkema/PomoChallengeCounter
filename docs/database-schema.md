@@ -146,7 +146,7 @@ CREATE INDEX idx_messages_user_week ON MessageLogs(UserId, WeekId); -- For leade
 
 ## Data Constraints
 - Challenges must start on Monday, end on Sunday
-- Week count must match date range
+- Week count calculated automatically from date range
 - Emoji codes must be valid Discord format (Unicode, shortcode, or custom)
 - Point values must be positive integers
 - Emoji types must be valid enum values
