@@ -16,13 +16,8 @@ public class StartupService(
 
             // Initialize localization first (other services might need it)
             using var scope = serviceProvider.CreateScope();
-            var localizationService = scope.ServiceProvider.GetRequiredService<LocalizationService>();
+            var localizationService = scope.ServiceProvider.GetRequiredService<ILocalizationService>();
             await localizationService.InitializeAsync();
-
-            // TODO: Initialize other services that need async setup
-            // - Slash command registration
-            // - Health checks
-            // - Background schedulers
 
             logger.LogInformation("Application initialization completed successfully");
         }

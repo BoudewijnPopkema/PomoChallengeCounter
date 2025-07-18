@@ -13,7 +13,7 @@ public class MessageProcessorService(
     PomoChallengeDbContext context,
     IEmojiService emojiService,
     IServiceProvider serviceProvider,
-    LocalizationService localizationService,
+    ILocalizationService localizationService,
     ILogger<MessageProcessorService> logger)
 {
     public async Task<MessageProcessingResult> ProcessMessageAsync(ulong messageId, ulong userId, string messageContent, ulong? channelId = null, bool forceReprocess = false)
@@ -692,8 +692,8 @@ public class MessageProcessorService(
             if (week == null)
             {
                 return new EmbedProperties()
-                    .WithTitle("❌ Error")
-                    .WithDescription("Week not found")
+                    .WithTitle(localizationService.GetString("leaderboard.error_title", "en"))
+                    .WithDescription(localizationService.GetString("leaderboard.error_description", "en", weekId))
                     .WithColor(new Color(0xff0000));
             }
 

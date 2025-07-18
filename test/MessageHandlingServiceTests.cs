@@ -24,7 +24,7 @@ public class MessageHandlingServiceTests : IDisposable
             
         // Add required services
         services.AddSingleton<ITimeProvider, SystemTimeProvider>();
-        services.AddSingleton<LocalizationService>();
+        services.AddSingleton<ILocalizationService, LocalizationService>();
         services.AddSingleton<IEmojiService, EmojiService>();
         services.AddScoped<MessageProcessorService>();
         services.AddScoped<IChallengeService, ChallengeService>();

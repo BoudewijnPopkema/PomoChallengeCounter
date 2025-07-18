@@ -2,15 +2,20 @@ using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Services;
 using PomoChallengeCounter.Models;
 
 namespace PomoChallengeCounter.Commands;
 
-public class ChallengeCommands : BaseCommand
+public class ChallengeCommands(
+    ILocalizationService localizationService, 
+    PomoChallengeDbContext dbContext, 
+    IEmojiService emojiService, 
+    IChallengeService challengeService,
+    ILogger<ChallengeCommands> logger) : BaseCommand<ChallengeCommands>(localizationService, dbContext, emojiService, logger)
 {
-    public IChallengeService ChallengeService { get; set; } = null!;
-
     protected async Task RespondWithErrorAsync(string key, params object[] args)
     {
         await RespondAsync(GetLocalizedText(key, args), true);
@@ -56,7 +61,7 @@ public class ChallengeCommands : BaseCommand
             }
 
             // Create challenge using service
-            var result = await ChallengeService.CreateChallengeAsync(
+            var result = await challengeService.CreateChallengeAsync(
                 Context.Guild.Id, 
                 semester, 
                 theme, 
@@ -108,6 +113,8 @@ public class ChallengeCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error creating challenge for guild {GuildId} - Semester: {Semester}, Theme: {Theme}, StartDate: {StartDate}, EndDate: {EndDate}, Weeks: {Weeks}", 
+                Context.Guild.Id, semester, theme, startDate, endDate, weeks);
             await RespondAsync($"❌ Error creating challenge: {ex.Message}", ephemeral: true);
         }
     }
@@ -157,7 +164,7 @@ public class ChallengeCommands : BaseCommand
             }
 
             // Start the challenge
-            var result = await ChallengeService.StartChallengeAsync(challengeToStart.Id);
+            var result = await challengeService.StartChallengeAsync(challengeToStart.Id);
 
             if (result.IsSuccess && result.Challenge != null)
             {
@@ -195,6 +202,8 @@ public class ChallengeCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error starting challenge for guild {GuildId}, ChallengeId: {ChallengeId}", 
+                Context.Guild.Id, challengeId);
             await RespondAsync($"❌ Error starting challenge: {ex.Message}", ephemeral: true);
         }
     }
@@ -243,7 +252,7 @@ public class ChallengeCommands : BaseCommand
             }
 
             // Stop the challenge
-            var result = await ChallengeService.StopChallengeAsync(challengeToStop.Id);
+            var result = await challengeService.StopChallengeAsync(challengeToStop.Id);
 
             if (result.IsSuccess)
             {
@@ -273,6 +282,8 @@ public class ChallengeCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error stopping challenge for guild {GuildId}, ChallengeId: {ChallengeId}", 
+                Context.Guild.Id, challengeId);
             await RespondAsync($"❌ Error stopping challenge: {ex.Message}", ephemeral: true);
         }
     }
@@ -321,7 +332,7 @@ public class ChallengeCommands : BaseCommand
             }
 
             // Deactivate the challenge
-            var result = await ChallengeService.DeactivateChallengeAsync(challengeToDeactivate.Id);
+            var result = await challengeService.DeactivateChallengeAsync(challengeToDeactivate.Id);
 
             if (result.IsSuccess)
             {
@@ -355,6 +366,8 @@ public class ChallengeCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error deactivating challenge for guild {GuildId}, ChallengeId: {ChallengeId}", 
+                Context.Guild.Id, challengeId);
             await RespondAsync($"❌ Error deactivating challenge: {ex.Message}", ephemeral: true);
         }
     }
@@ -403,6 +416,7 @@ public class ChallengeCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error listing challenges for guild {GuildId}", Context.Guild.Id);
             await RespondAsync($"Error listing challenges: {ex.Message}", ephemeral: true);
         }
     }
@@ -463,6 +477,7 @@ public class ChallengeCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error retrieving challenge info for guild {GuildId}", Context.Guild.Id);
             await RespondAsync($"❌ Error retrieving challenge info: {ex.Message}", ephemeral: true);
         }
     }
@@ -493,13 +508,8 @@ public class ChallengeCommands : BaseCommand
                 return;
             }
 
-            // Note: Will validate channel type during import process
-
-            // Acknowledge the command immediately (this will take a while)
-            await RespondAsync("🔄 Starting challenge import... This may take several minutes. I'll update you when it's complete!", ephemeral: true);
-
             // Start the import process
-            var importResult = await ChallengeService.ImportChallengeAsync(
+            var importResult = await challengeService.ImportChallengeAsync(
                 Context.Guild.Id,
                 channel.Id,
                 semester,
@@ -529,9 +539,9 @@ public class ChallengeCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error importing challenge for guild {GuildId} - ChannelId: {ChannelId}, Semester: {Semester}, Theme: {Theme}", 
+                Context.Guild.Id, channel.Id, semester, theme);
             await RespondAsync($"❌ Import error: {ex.Message}", ephemeral: true);
         }
     }
-
-    // TODO: Re-implement other challenge commands after basic NetCord integration is working
 } 

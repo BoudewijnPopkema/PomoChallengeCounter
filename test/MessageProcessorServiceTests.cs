@@ -30,27 +30,27 @@ public class MessageProcessorServiceTests : IDisposable
         // Setup mocks
         _mockEmojiService = new Mock<IEmojiService>();
         _mockLogger = new Mock<ILogger<MessageProcessorService>>();
-        var mockLocalizationService = new Mock<LocalizationService>(Mock.Of<ILogger<LocalizationService>>());
+        var mockLocalizationService = new Mock<ILocalizationService>();
         
-        // Setup localization mock to return expected values
+        // Setup localization mock to return expected values from en.json
         mockLocalizationService.Setup(l => l.GetString("leaderboard.title", It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns("🏆 Challenge Leaderboard");
-        mockLocalizationService.Setup(l => l.GetString("leaderboard.error.invalid_week", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns((string key, string lang, object[] args) => $"🏆 Challenge Leaderboard - Week {args[0]}");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.error_title", It.IsAny<string>(), It.IsAny<object[]>()))
             .Returns("❌ Leaderboard Error");
-        mockLocalizationService.Setup(l => l.GetString("leaderboard.error.week_not_found", It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns("❌ Error");
+        mockLocalizationService.Setup(l => l.GetString("leaderboard.error_description", It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns((string key, string lang, object[] args) => $"Unable to generate leaderboard for week {args[0]}.\nPlease contact an administrator if this issue persists.");
         mockLocalizationService.Setup(l => l.GetString("leaderboard.description", It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns("**Test Challenge Theme** - Q1");
+            .Returns((string key, string lang, object[] args) => $"**{args[0]}** - Q{args[1]}\n*Ranked by total challenge score with this week's progress*");
         mockLocalizationService.Setup(l => l.GetString("leaderboard.author_name", It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns("Challenge Leaderboard");
+            .Returns((string key, string lang, object[] args) => $"Q{args[0]} Challenge Progress");
         mockLocalizationService.Setup(l => l.GetString("leaderboard.field_title", It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns("Week 1 Rankings");
+            .Returns("🏆 Challenge Leaderboard");
         mockLocalizationService.Setup(l => l.GetString("leaderboard.statistics_title", It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns("📊 This Week");
+            .Returns("📊 Challenge Statistics");
         mockLocalizationService.Setup(l => l.GetString("leaderboard.no_data", It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns("No activity recorded for this week yet.");
+            .Returns("No data found for this week.");
         mockLocalizationService.Setup(l => l.GetString("leaderboard.goal_next_week", It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns("Goal: {0} pts");
+            .Returns((string key, string lang, object[] args) => $"Goal: {args[0]} pts");
         
         var mockServiceProvider = new Mock<IServiceProvider>();
         
@@ -759,7 +759,7 @@ public class MessageProcessorServiceTests : IDisposable
         embed.Title.ShouldContain("🏆 Challenge Leaderboard");
         embed.Title.ShouldContain("Week 1");
         embed.Description.ShouldContain("Test Challenge");
-        embed.Description.ShouldContain("Semester 3");
+        embed.Description.ShouldContain("Q1");
         embed.Color.ShouldBe(new NetCord.Color(0xffd700)); // Gold color
         embed.Fields.ShouldNotBeEmpty();
         embed.Footer.ShouldNotBeNull();
@@ -792,7 +792,7 @@ public class MessageProcessorServiceTests : IDisposable
         // Assert
         embed.ShouldNotBeNull();
         embed.Title.ShouldContain("❌ Leaderboard Error");
-        embed.Description.ShouldContain("Week not found");
+        embed.Description.ShouldContain("Unable to generate leaderboard for week 999");
         embed.Color.ShouldBe(new NetCord.Color(0xff0000)); // Red color for error
     }
 } 

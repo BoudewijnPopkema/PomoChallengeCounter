@@ -15,7 +15,7 @@ public class AutomationService(
     IServiceProvider serviceProvider,
     ITimeProvider timeProvider,
     GatewayClient gatewayClient,
-    LocalizationService localizationService,
+    ILocalizationService localizationService,
     ILogger<AutomationService> logger) : BackgroundService
 {
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(15); // Check every 15 minutes
@@ -48,7 +48,7 @@ public class AutomationService(
 
     private async Task CheckAndCreateWeeklyThreadsAsync()
     {
-        var utcNow = timeProvider.Now;
+        var utcNow = timeProvider.UtcNow;
         
         // Convert to Amsterdam time (Central European Time)
         var amsterdamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
@@ -263,7 +263,7 @@ public class AutomationService(
 
     private async Task CheckAndPostLeaderboardsAsync()
     {
-        var utcNow = timeProvider.Now;
+        var utcNow = timeProvider.UtcNow;
         
         // Convert to Amsterdam time (Central European Time)
         var amsterdamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
@@ -314,14 +314,17 @@ public class AutomationService(
     {
         // Calculate if this week should have ended (it's the Tuesday after the week ended)
         var challenge = week.Challenge;
-        var challengeStart = challenge.StartDate.ToDateTime(TimeOnly.MinValue);
-        var weekStartDate = challengeStart.AddDays((week.WeekNumber - 1) * 7);
-        var weekEndDate = weekStartDate.AddDays(7); // End of the week
         
-        // Only post leaderboard on the Tuesday after the week has ended
-        if (now.Date < weekEndDate.Date.AddDays(1)) // Tuesday after the week
+        // Convert challenge dates to Amsterdam time for consistent comparison  
+        var challengeStartAmsterdam = ConvertDateOnlyToAmsterdamTime(challenge.StartDate);
+        var weekStartDate = challengeStartAmsterdam.AddDays((week.WeekNumber - 1) * 7);
+        var weekEndDate = weekStartDate.AddDays(7); // End of the week (Amsterdam time)
+        var tuesdayAfter = weekEndDate.AddDays(1); // Tuesday after the week
+        
+        // Only post leaderboard on the Tuesday after the week has ended (both times in Amsterdam timezone)
+        if (now.Date != tuesdayAfter.Date)
         {
-            logger.LogDebug("Week {WeekNumber} in challenge {ChallengeId} hasn't ended yet, skipping leaderboard posting", 
+            logger.LogDebug("Week {WeekNumber} in challenge {ChallengeId} hasn't ended yet or it's not the right Tuesday, skipping leaderboard posting", 
                 week.WeekNumber, challenge.Id);
             return;
         }
@@ -413,31 +416,38 @@ public class AutomationService(
             // 3. Post to the Discord thread
             if (week.ThreadId != 0)
             {
-                try
+                if (gatewayClient?.Rest != null)
                 {
-                    var channel = await gatewayClient.Rest.GetChannelAsync(week.ThreadId);
-                    if (channel is TextGuildChannel textChannel)
+                    try
                     {
-                        var message = new MessageProperties()
+                        var channel = await gatewayClient.Rest.GetChannelAsync(week.ThreadId);
+                        if (channel is TextGuildChannel textChannel)
                         {
-                            Embeds = [embed]
-                        };
+                            var message = new MessageProperties()
+                            {
+                                Embeds = [embed]
+                            };
 
-                        await textChannel.SendMessageAsync(message);
-                        
-                        logger.LogInformation("Successfully posted leaderboard for week {WeekNumber} in challenge {ChallengeId} to thread {ThreadId}",
-                            week.WeekNumber, challenge.Id, week.ThreadId);
+                            await textChannel.SendMessageAsync(message);
+                            
+                            logger.LogInformation("Successfully posted leaderboard for week {WeekNumber} in challenge {ChallengeId} to thread {ThreadId}",
+                                week.WeekNumber, challenge.Id, week.ThreadId);
+                        }
+                        else
+                        {
+                            logger.LogWarning("Channel {ThreadId} is not a text channel, cannot post leaderboard", week.ThreadId);
+                        }
                     }
-                    else
+                    catch (Exception threadEx)
                     {
-                        logger.LogWarning("Channel {ThreadId} is not a text channel, cannot post leaderboard", week.ThreadId);
+                        logger.LogError(threadEx, "Failed to post leaderboard message to thread {ThreadId}", week.ThreadId);
+                        // Don't mark as posted if Discord posting failed
+                        return;
                     }
                 }
-                catch (Exception threadEx)
+                else
                 {
-                    logger.LogError(threadEx, "Failed to post leaderboard message to thread {ThreadId}", week.ThreadId);
-                    // Don't mark as posted if Discord posting failed
-                    return;
+                    logger.LogInformation("Discord client not available (test mode), skipping actual Discord posting for week {WeekNumber}", week.WeekNumber);
                 }
             }
             else
@@ -616,12 +626,13 @@ public class AutomationService(
     
     private int GetCurrentWeekNumber(Challenge challenge)
     {
-        var utcNow = timeProvider.Now;
+        var utcNow = timeProvider.UtcNow;
         var amsterdamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
         var amsterdamNow = TimeZoneInfo.ConvertTimeFromUtc(utcNow, amsterdamTimeZone);
         
-        var challengeStart = challenge.StartDate.ToDateTime(TimeOnly.MinValue);
-        var weeksSinceStart = (amsterdamNow.Date - challengeStart.Date).Days / 7 + 1;
+        // Convert challenge start date to Amsterdam time for consistent comparison
+        var challengeStartAmsterdam = ConvertDateOnlyToAmsterdamTime(challenge.StartDate);
+        var weeksSinceStart = (amsterdamNow.Date - challengeStartAmsterdam.Date).Days / 7 + 1;
         
         return Math.Max(1, weeksSinceStart);
     }
@@ -630,5 +641,21 @@ public class AutomationService(
     {
         logger.LogInformation("Automation service stopping");
         return base.StopAsync(cancellationToken);
+    }
+    
+    /// <summary>
+    /// Convert a DateOnly to DateTime in Amsterdam timezone for consistent scheduling comparisons
+    /// </summary>
+    private DateTime ConvertDateOnlyToAmsterdamTime(DateOnly date)
+    {
+        var amsterdamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
+        
+        // Create DateTime at midnight and specify it as Amsterdam time
+        var dateTime = date.ToDateTime(TimeOnly.MinValue);
+        var amsterdamDateTime = DateTime.SpecifyKind(dateTime, DateTimeKind.Unspecified);
+        
+        // Convert to UTC first, then back to Amsterdam to ensure proper timezone handling
+        var utcDateTime = TimeZoneInfo.ConvertTimeToUtc(amsterdamDateTime, amsterdamTimeZone);
+        return TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, amsterdamTimeZone);
     }
 } 

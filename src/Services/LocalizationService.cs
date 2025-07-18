@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace PomoChallengeCounter.Services;
 
-public class LocalizationService(ILogger<LocalizationService> logger)
+public class LocalizationService(ILogger<LocalizationService> logger) : ILocalizationService
 {
     private readonly Dictionary<string, Dictionary<string, object>> _translations = new();
 

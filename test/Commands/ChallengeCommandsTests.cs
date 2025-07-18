@@ -12,7 +12,7 @@ public class ChallengeCommandsTests : IDisposable
     private readonly ServiceProvider _serviceProvider;
     private readonly PomoChallengeDbContext _context;
     private readonly IChallengeService _challengeService;
-    private readonly LocalizationService _localizationService;
+    private readonly ILocalizationService _localizationService;
 
     public ChallengeCommandsTests()
     {
@@ -23,7 +23,7 @@ public class ChallengeCommandsTests : IDisposable
             options.UseInMemoryDatabase($"TestDb_{Guid.NewGuid()}"));
             
         // Add required services
-        services.AddSingleton<LocalizationService>();
+        services.AddSingleton<ILocalizationService, LocalizationService>();
         services.AddSingleton<ITimeProvider, MockTimeProvider>();
         services.AddSingleton<NetCord.Gateway.GatewayClient>(provider => null);
         services.AddScoped<IChallengeService, ChallengeService>();
@@ -32,7 +32,7 @@ public class ChallengeCommandsTests : IDisposable
         _serviceProvider = services.BuildServiceProvider();
         _context = _serviceProvider.GetRequiredService<PomoChallengeDbContext>();
         _challengeService = _serviceProvider.GetRequiredService<IChallengeService>();
-        _localizationService = _serviceProvider.GetRequiredService<LocalizationService>();
+        _localizationService = _serviceProvider.GetRequiredService<ILocalizationService>();
     }
 
     private async Task<Server> CreateTestServerAsync(ulong serverId = 12345)

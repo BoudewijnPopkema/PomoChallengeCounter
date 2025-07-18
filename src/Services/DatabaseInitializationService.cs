@@ -17,7 +17,7 @@ public class DatabaseInitializationService(IServiceProvider serviceProvider, ILo
             
             logger.LogInformation("Starting database initialization...");
             
-            // Apply any pending migrations
+            // Apply migrations (this will also create the database if it doesn't exist)
             var pendingMigrations = (await context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
             if (pendingMigrations.Any())
             {
@@ -30,17 +30,10 @@ public class DatabaseInitializationService(IServiceProvider serviceProvider, ILo
             else
             {
                 logger.LogInformation("No pending migrations found");
-            }
-
-            // Ensure database is created (if it doesn't exist)
-            var created = await context.Database.EnsureCreatedAsync(cancellationToken);
-            if (created)
-            {
-                logger.LogInformation("Database created successfully");
-            }
-            else
-            {
-                logger.LogInformation("Database already exists");
+                
+                // Even with no migrations, call MigrateAsync to ensure database and migrations history table exist
+                await context.Database.MigrateAsync(cancellationToken);
+                logger.LogInformation("Database and migrations history ensured");
             }
 
             logger.LogInformation("Database initialization completed successfully");

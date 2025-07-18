@@ -1,9 +1,16 @@
 using NetCord;
 using NetCord.Services.ApplicationCommands;
+using Microsoft.Extensions.Logging;
+using PomoChallengeCounter.Data;
+using PomoChallengeCounter.Services;
 
 namespace PomoChallengeCounter.Commands;
 
-public class ConfigCommands : BaseCommand
+public class ConfigCommands(
+    ILocalizationService localizationService,
+    PomoChallengeDbContext dbContext,
+    IEmojiService emojiService,
+    ILogger<ConfigCommands> logger) : BaseCommand<ConfigCommands>(localizationService, dbContext, emojiService, logger)
 {
     [SlashCommand("config-category", "Set the category where challenges are created")]
     public async Task CategoryAsync(
@@ -28,6 +35,7 @@ public class ConfigCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error setting category for guild {GuildId}, CategoryId: {CategoryId}", Context.Guild.Id, category.Id);
             await RespondAsync(GetLocalizedText("errors.config_category_error", ex.Message), ephemeral: true);
         }
     }
@@ -62,6 +70,7 @@ public class ConfigCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error setting language for guild {GuildId}, Language: {Language}", Context.Guild.Id, language);
             await RespondAsync($"Config language error: {ex.Message}", ephemeral: true);
         }
     }
@@ -101,6 +110,8 @@ public class ConfigCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error configuring roles for guild {GuildId}, ConfigRoleId: {ConfigRoleId}, PingRoleId: {PingRoleId}", 
+                Context.Guild.Id, configRole?.Id, pingRole?.Id);
             await RespondAsync($"Config roles error: {ex.Message}", ephemeral: true);
         }
     }

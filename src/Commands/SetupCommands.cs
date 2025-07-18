@@ -1,11 +1,18 @@
 using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
+using Microsoft.Extensions.Logging;
+using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
+using PomoChallengeCounter.Services;
 
 namespace PomoChallengeCounter.Commands;
 
-public class SetupCommands : BaseCommand
+public class SetupCommands(
+    ILocalizationService localizationService,
+    PomoChallengeDbContext dbContext,
+    IEmojiService emojiService,
+    ILogger<SetupCommands> logger) : BaseCommand<SetupCommands>(localizationService, dbContext, emojiService, logger)
 {
     [SlashCommand("setup", "Initial bot setup for the server")]
     public async Task SetupAsync(
@@ -50,36 +57,23 @@ public class SetupCommands : BaseCommand
             DbContext.Servers.Add(server);
             await DbContext.SaveChangesAsync();
 
-            var embed = new EmbedProperties()
-                .WithTitle(GetLocalizedText("errors.server_setup_complete"))
-                .WithColor(new Color(0x00ff00))
-                .WithDescription(GetLocalizedText("setup.success_description"))
-                .AddFields(
-                    new EmbedFieldProperties()
-                        .WithName(GetLocalizedText("setup.field_category"))
-                        .WithValue($"<#{category.Id}>")
-                        .WithInline(true),
-                    new EmbedFieldProperties()
-                        .WithName(GetLocalizedText("setup.field_language"))
-                        .WithValue(language.ToUpper())
-                        .WithInline(true),
-                    new EmbedFieldProperties()
-                        .WithName(GetLocalizedText("setup.field_config_role"))
-                        .WithValue(configRole != null ? $"<@&{configRole.Id}>" : GetLocalizedText("setup.none"))
-                        .WithInline(true),
-                    new EmbedFieldProperties()
-                        .WithName(GetLocalizedText("setup.field_ping_role"))
-                        .WithValue(pingRole != null ? $"<@&{pingRole.Id}>" : GetLocalizedText("setup.none"))
-                        .WithInline(true)
-                );
+            // Build success message
+            var message = GetLocalizedText("responses.setup_success");
+            message += $"\n**Category**: <#{category.Id}>";
+            message += $"\n**Language**: {language.ToUpper()}";
+            
+            if (configRole != null)
+                message += $"\n**Config Role**: <@&{configRole.Id}>";
+            
+            if (pingRole != null)
+                message += $"\n**Ping Role**: <@&{pingRole.Id}>";
 
-            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new()
-            {
-                Embeds = [embed]
-            }));
+            await RespondAsync(message);
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error during server setup for guild {GuildId} - CategoryId: {CategoryId}, Language: {Language}, ConfigRoleId: {ConfigRoleId}, PingRoleId: {PingRoleId}", 
+                Context.Guild.Id, category.Id, language, configRole?.Id, pingRole?.Id);
             await RespondAsync(GetLocalizedText("errors.setup_error", ex.Message), ephemeral: true);
         }
     }

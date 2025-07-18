@@ -2,16 +2,22 @@ using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Services;
 
 namespace PomoChallengeCounter.Commands;
 
-public abstract class BaseCommand : ApplicationCommandModule<ApplicationCommandContext>
+public abstract class BaseCommand<T>(
+    ILocalizationService localizationService,
+    PomoChallengeDbContext dbContext,
+    IEmojiService emojiService,
+    ILogger<T> logger) : ApplicationCommandModule<ApplicationCommandContext>
 {
-    public LocalizationService LocalizationService { get; set; } = null!;
-    public PomoChallengeDbContext DbContext { get; set; } = null!;
-    public IEmojiService EmojiService { get; set; } = null!;
+    protected readonly ILocalizationService LocalizationService = localizationService;
+    protected readonly PomoChallengeDbContext DbContext = dbContext;
+    protected readonly IEmojiService EmojiService = emojiService;
+    protected readonly ILogger<T> Logger = logger;
 
     protected async Task<bool> CheckPermissionsAsync(PermissionLevel requiredLevel)
     {

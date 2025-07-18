@@ -2,13 +2,20 @@ using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Services;
 
 namespace PomoChallengeCounter.Commands;
 
-public class AdminCommands : BaseCommand
+public class AdminCommands(
+    ILocalizationService localizationService,
+    PomoChallengeDbContext dbContext,
+    IEmojiService emojiService,
+    MessageProcessorService messageProcessor,
+    ILogger<AdminCommands> logger) : BaseCommand<AdminCommands>(localizationService, dbContext, emojiService, logger)
 {
-    public MessageProcessorService MessageProcessor { get; set; } = null!;
+    private readonly MessageProcessorService _messageProcessor = messageProcessor;
 
     [SlashCommand("stats", "View server statistics")]
     public async Task StatsAsync()
@@ -88,6 +95,7 @@ public class AdminCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error retrieving server statistics for guild {GuildId}", Context.Guild.Id);
             await RespondAsync($"Error retrieving stats: {ex.Message}", ephemeral: true);
         }
     }
@@ -167,6 +175,7 @@ public class AdminCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error retrieving debug information for guild {GuildId}", Context.Guild.Id);
             await RespondAsync($"Error retrieving debug info: {ex.Message}", ephemeral: true);
         }
     }
@@ -284,7 +293,7 @@ public class AdminCommands : BaseCommand
             }
 
             // Generate the leaderboard embed
-            var embed = await MessageProcessor.GenerateLeaderboardEmbedAsync(week.Id);
+            var embed = await _messageProcessor.GenerateLeaderboardEmbedAsync(week.Id);
 
             // Send the response
             await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new()
@@ -294,6 +303,7 @@ public class AdminCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error generating leaderboard for week {WeekNumber} in guild {GuildId}", weekNumber, Context.Guild.Id);
             await RespondAsync($"Error generating leaderboard: {ex.Message}", ephemeral: true);
         }
     }

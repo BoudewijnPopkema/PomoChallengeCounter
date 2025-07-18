@@ -5,6 +5,7 @@ using PomoChallengeCounter.Commands;
 using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Models;
 using PomoChallengeCounter.Services;
+using System.Reflection;
 
 namespace PomoChallengeCounter.Tests;
 
@@ -12,7 +13,7 @@ public class PermissionSystemTests : IDisposable
 {
     private readonly ServiceProvider _serviceProvider;
     private readonly PomoChallengeDbContext _context;
-    private readonly LocalizationService _localizationService;
+    private readonly ILocalizationService _localizationService;
 
     public PermissionSystemTests()
     {
@@ -23,12 +24,12 @@ public class PermissionSystemTests : IDisposable
             options.UseInMemoryDatabase($"TestDb_{Guid.NewGuid()}"));
             
         // Add required services
-        services.AddSingleton<LocalizationService>();
+        services.AddSingleton<ILocalizationService, LocalizationService>();
         services.AddLogging();
         
         _serviceProvider = services.BuildServiceProvider();
         _context = _serviceProvider.GetRequiredService<PomoChallengeDbContext>();
-        _localizationService = _serviceProvider.GetRequiredService<LocalizationService>();
+        _localizationService = _serviceProvider.GetRequiredService<ILocalizationService>();
     }
 
     [Fact]
@@ -146,17 +147,18 @@ public class PermissionSystemTests : IDisposable
     public void BaseCommand_ShouldBeInheritedByAllCommandClasses()
     {
         // Arrange - Get all command classes
-        var commandClasses = typeof(BaseCommand).Assembly.GetTypes()
-            .Where(t => t.Name.EndsWith("Commands") && !t.IsAbstract && t != typeof(BaseCommand))
+        var commandClasses = Assembly.GetAssembly(typeof(PomoChallengeCounter.Commands.BaseCommand<>))!.GetTypes()
+            .Where(t => t.Name.EndsWith("Commands") && !t.IsAbstract && !t.IsGenericTypeDefinition)
             .ToList();
 
-        // Assert - All command classes should inherit from BaseCommand
+        // Assert - All command classes should inherit from some form of BaseCommand<T>
         commandClasses.ShouldNotBeEmpty();
         
         foreach (var commandClass in commandClasses)
         {
-            commandClass.IsSubclassOf(typeof(BaseCommand)).ShouldBeTrue(
-                $"{commandClass.Name} should inherit from BaseCommand");
+            var inheritsFromBaseCommand = InheritsFromGenericBaseCommand(commandClass);
+            inheritsFromBaseCommand.ShouldBeTrue(
+                $"{commandClass.Name} should inherit from BaseCommand<T>");
         }
     }
 
@@ -210,17 +212,18 @@ public class PermissionSystemTests : IDisposable
         // This test verifies that command methods use CheckPermissionsAsync
         // We can't test the actual execution without complex mocking, but we can verify structure
         
-        var commandClasses = typeof(BaseCommand).Assembly.GetTypes()
-            .Where(t => t.Name.EndsWith("Commands") && !t.IsAbstract && t != typeof(BaseCommand))
+        var commandClasses = Assembly.GetAssembly(typeof(PomoChallengeCounter.Commands.BaseCommand<>))!.GetTypes()
+            .Where(t => t.Name.EndsWith("Commands") && !t.IsAbstract && !t.IsGenericTypeDefinition)
             .ToList();
 
         commandClasses.ShouldNotBeEmpty();
 
         foreach (var commandClass in commandClasses)
         {
-            // Verify it inherits from BaseCommand (which provides CheckPermissionsAsync)
-            commandClass.IsSubclassOf(typeof(BaseCommand)).ShouldBeTrue(
-                $"{commandClass.Name} should inherit from BaseCommand to get permission checking");
+            // Verify it inherits from BaseCommand<T> (which provides CheckPermissionsAsync)
+            var inheritsFromBaseCommand = InheritsFromGenericBaseCommand(commandClass);
+            inheritsFromBaseCommand.ShouldBeTrue(
+                $"{commandClass.Name} should inherit from BaseCommand<T> to get permission checking");
                 
             // Verify it has public methods (these should be slash commands)
             var publicMethods = commandClass.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
@@ -235,5 +238,19 @@ public class PermissionSystemTests : IDisposable
     {
         _context?.Dispose();
         _serviceProvider?.Dispose();
+    }
+
+    private static bool InheritsFromGenericBaseCommand(Type type)
+    {
+        var baseType = type.BaseType;
+        while (baseType != null)
+        {
+            if (baseType.IsGenericType && baseType.GetGenericTypeDefinition() == typeof(PomoChallengeCounter.Commands.BaseCommand<>))
+            {
+                return true;
+            }
+            baseType = baseType.BaseType;
+        }
+        return false;
     }
 } 

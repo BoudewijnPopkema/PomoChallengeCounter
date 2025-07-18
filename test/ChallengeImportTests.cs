@@ -74,8 +74,8 @@ public class ChallengeImportTests : IDisposable
         services.AddSingleton(mockMessageLogger.Object);
         services.AddSingleton(mockEmojiService.Object);
 
-        var mockLocalizationService = new Mock<LocalizationService>(Mock.Of<ILogger<LocalizationService>>());
-        services.AddSingleton(mockLocalizationService.Object);
+                    var mockLocalizationService = new Mock<ILocalizationService>();
+            services.AddSingleton(mockLocalizationService.Object);
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -85,7 +85,7 @@ public class ChallengeImportTests : IDisposable
         _messageProcessor = new MessageProcessorService(_context, 
             serviceProvider.GetRequiredService<IEmojiService>(),
             serviceProvider,
-            serviceProvider.GetRequiredService<LocalizationService>(),
+                            serviceProvider.GetRequiredService<ILocalizationService>(),
             serviceProvider.GetRequiredService<ILogger<MessageProcessorService>>());
     }
 

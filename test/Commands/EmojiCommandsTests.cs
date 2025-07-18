@@ -12,7 +12,7 @@ public class EmojiCommandsTests : IDisposable
     private readonly ServiceProvider _serviceProvider;
     private readonly PomoChallengeDbContext _context;
     private readonly IEmojiService _emojiService;
-    private readonly LocalizationService _localizationService;
+    private readonly ILocalizationService _localizationService;
 
     public EmojiCommandsTests()
     {
@@ -26,12 +26,12 @@ public class EmojiCommandsTests : IDisposable
         services.AddSingleton<ITimeProvider, MockTimeProvider>();
         services.AddLogging(); // Add logging support
         services.AddSingleton<IEmojiService, EmojiService>();
-        services.AddSingleton<LocalizationService>();
+        services.AddSingleton<ILocalizationService, LocalizationService>();
         
         _serviceProvider = services.BuildServiceProvider();
         _context = _serviceProvider.GetRequiredService<PomoChallengeDbContext>();
         _emojiService = _serviceProvider.GetRequiredService<IEmojiService>();
-        _localizationService = _serviceProvider.GetRequiredService<LocalizationService>();
+        _localizationService = _serviceProvider.GetRequiredService<ILocalizationService>();
         
         // Initialize localization
         _localizationService.InitializeAsync().Wait();

@@ -1,14 +1,22 @@
 using NetCord.Services.ApplicationCommands;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using PomoChallengeCounter.Data;
 using PomoChallengeCounter.Services;
 using PomoChallengeCounter.Models;
 
 namespace PomoChallengeCounter.Commands;
 
-public class ThreadCommands : BaseCommand
+public class ThreadCommands(
+    ILocalizationService localizationService,
+    PomoChallengeDbContext dbContext,
+    IEmojiService emojiService,
+    IDiscordThreadService discordThreadService,
+    IChallengeService challengeService,
+    ILogger<ThreadCommands> logger) : BaseCommand<ThreadCommands>(localizationService, dbContext, emojiService, logger)
 {
-    public IDiscordThreadService DiscordThreadService { get; set; } = null!;
-    public IChallengeService ChallengeService { get; set; } = null!;
+    private readonly IDiscordThreadService _discordThreadService = discordThreadService;
+    private readonly IChallengeService _challengeService = challengeService;
 
     [SlashCommand("thread-create", "Create a new week thread")]
     public async Task CreateThreadAsync(
@@ -35,8 +43,8 @@ public class ThreadCommands : BaseCommand
 
             // Get the challenge (current or specified)
             var challenge = challengeId.HasValue 
-                ? await ChallengeService.GetChallengeAsync(challengeId.Value)
-                : await ChallengeService.GetCurrentChallengeAsync(Context.Guild.Id);
+                ? await _challengeService.GetChallengeAsync(challengeId.Value)
+                : await _challengeService.GetCurrentChallengeAsync(Context.Guild.Id);
 
             if (challenge == null)
             {
@@ -72,7 +80,7 @@ public class ThreadCommands : BaseCommand
             var welcomeMessage = string.Format(randomWelcome, weekNumber);
 
             // Create the Discord thread
-            var threadResult = await DiscordThreadService.CreateThreadAsync(
+            var threadResult = await _discordThreadService.CreateThreadAsync(
                 Context.Guild.Id,
                 server.CategoryId.Value,
                 threadName,
@@ -109,6 +117,8 @@ public class ThreadCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error creating thread for guild {GuildId} - WeekNumber: {WeekNumber}, ChallengeId: {ChallengeId}", 
+                Context.Guild.Id, weekNumber, challengeId);
             await FollowupAsync(GetLocalizedText("errors.error_creating_thread", ex.Message), ephemeral: true);
         }
     }
@@ -138,9 +148,8 @@ public class ThreadCommands : BaseCommand
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error pinging role for guild {GuildId}", Context.Guild.Id);
             await RespondAsync(GetLocalizedText("errors.error_pinging_role", ex.Message), ephemeral: true);
         }
     }
-
-    // TODO: Re-implement complex thread and leaderboard logic after basic NetCord integration is working
 } 

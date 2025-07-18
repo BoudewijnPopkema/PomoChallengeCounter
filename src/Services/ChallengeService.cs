@@ -429,86 +429,54 @@ public class ChallengeService(
 
     private async Task<List<ThreadInfo>> ScanChannelForChallengeThreadsAsync(ulong channelId, int semesterNumber)
     {
-        var threads = new List<ThreadInfo>();
-
         try
         {
             logger.LogInformation("Scanning channel {ChannelId} for Q{Semester}-week[N] threads", channelId, semesterNumber);
-
-            // Get the channel
+            
             var channel = await gatewayClient.Rest.GetChannelAsync(channelId);
-
-            // Check if it's a text channel that can have threads
+            
             if (channel is TextGuildChannel textChannel)
             {
-                try
-                {
-                    logger.LogDebug("Scanning threads from text channel {ChannelId}", channelId);
-                    
-                    // Get the guild to enumerate all channels/threads
-                    var guild = await gatewayClient.Rest.GetGuildAsync(textChannel.GuildId);
-                    var allChannels = await guild.GetChannelsAsync();
-                    
-                    // Filter for GuildThread channels that belong to our target channel
-                    var guildThreads = allChannels
-                        .OfType<GuildThread>()
-                        .Where(t => t.ParentId == channelId)
-                        .ToList();
-                    
-                    logger.LogDebug("Found {ThreadCount} threads in channel {ChannelId}", guildThreads.Count, channelId);
-                    
-                    // Process each thread and check if it matches the challenge pattern
-                    foreach (var thread in guildThreads)
+                logger.LogDebug("Scanning threads from text channel {ChannelId}", channelId);
+                
+                var guild = await gatewayClient.Rest.GetGuildAsync(textChannel.GuildId);
+                var allThreads = await guild.GetActiveThreadsAsync();
+                var archivedChannelThreads = textChannel.GetPublicArchivedGuildThreadsAsync().ToBlockingEnumerable().ToList();
+                
+                var channelThreads = allThreads
+                    .Where(t => t.ParentId == channelId)
+                    .Concat(archivedChannelThreads)
+                    .ToList();
+                
+                logger.LogDebug("Found {ThreadCount} threads in channel {ChannelId}", channelThreads.Count, channelId);
+                
+                var matchingThreads = channelThreads
+                    .Select(thread => new { Thread = thread, ParseResult = ParseThreadName(thread.Name, semesterNumber) })
+                    .Where(x => x.ParseResult.isMatch)
+                    .Select(x => new ThreadInfo
                     {
-                        var (isMatch, weekNumber) = ParseThreadName(thread.Name, semesterNumber);
-                        
-                        if (isMatch)
-                        {
-                            var threadInfo = new ThreadInfo
-                            {
-                                Name = thread.Name,
-                                ThreadId = thread.Id,
-                                WeekNumber = weekNumber,
-                                CreatedAt = thread.CreatedAt.DateTime
-                            };
-                            
-                            threads.Add(threadInfo);
-                            
-                            logger.LogDebug("Found matching thread: {ThreadName} (ID: {ThreadId}) for week {WeekNumber}", 
-                                thread.Name, thread.Id, weekNumber);
-                        }
-                        else
-                        {
-                            logger.LogDebug("Thread {ThreadName} does not match Q{Semester}-week[N] pattern", 
-                                thread.Name, semesterNumber);
-                        }
-                    }
-                    
-                    logger.LogInformation("Successfully scanned channel {ChannelId}, found {MatchingThreads} matching threads out of {TotalThreads} total threads", 
-                        channelId, threads.Count, guildThreads.Count);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Failed to retrieve threads from channel {ChannelId}", channelId);
-                }
-            }
-            else
-            {
-                logger.LogWarning("Channel {ChannelId} is not a text channel, cannot scan for threads", channelId);
+                        Name = x.Thread.Name,
+                        ThreadId = x.Thread.Id,
+                        WeekNumber = x.ParseResult.weekNumber,
+                        CreatedAt = x.Thread.CreatedAt.DateTime
+                    })
+                    .ToList();
+                
+                logger.LogInformation("Successfully scanned channel {ChannelId}, found {MatchingThreads} matching threads out of {TotalThreads} total threads", 
+                    channelId, matchingThreads.Count, channelThreads.Count);
+                
+                matchingThreads.Sort((a, b) => a.WeekNumber.CompareTo(b.WeekNumber));
+                
+                return matchingThreads;
             }
 
-            // Sort threads by week number for consistent processing
-            threads.Sort((a, b) => a.WeekNumber.CompareTo(b.WeekNumber));
-
-            logger.LogInformation("Found {ThreadCount} challenge threads in channel {ChannelId} for semester {Semester}", 
-                threads.Count, channelId, semesterNumber);
-
-            return threads;
+            logger.LogWarning("Channel {ChannelId} is not a text channel, cannot scan for threads", channelId);
+            return [];
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error scanning channel {ChannelId} for threads", channelId);
-            return threads;
+            return [];
         }
     }
 
